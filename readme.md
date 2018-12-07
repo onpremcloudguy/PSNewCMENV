@@ -26,10 +26,8 @@ The script has been setup to use either TP or Production version of SCCM, and yo
 
 ### Known issues ###
 
-Currently there is an issue with the SQL Install which is impacting the SCCM installation which i haven't had to fix so have handled it in the SCCM installation
-
 CA, and SCCM are both installed but not fully configured.
 
 Tweet me on @onpremcloudguy if there are anything you think should be included.
 
-big thanks to @ncbrady from @windowsnoob, and the guys & Girls from @SCConfigMgr for there previous work in documenting the installation of SCCM and the dependent components.
+big thanks to @ncbrady from @windowsnoob, and the Guys & Girls from @SCConfigMgr for there previous work in documenting the installation of SCCM and the dependent components.

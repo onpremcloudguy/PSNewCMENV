@@ -1,5 +1,5 @@
+#region Functions
 function new-ENV {
-
     param(
         [Parameter(Mandatory)]
         [pscredential]
@@ -82,7 +82,10 @@ function new-RRASServer {
         $swname,
         [Parameter(Mandatory)]
         [string]
-        $ipsub
+        $ipsub,
+        [parameter(Mandatory=$false)]
+        [switch]
+        $vmSnapshotenabled
     )
     Write-LogEntry -Message "RRAS Server started $(Get-Date)" -type Information
     if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object {$_.name -match "RRAS Server Should exist"}).Result -notmatch "Passed") {
@@ -104,6 +107,9 @@ function new-RRASServer {
             Write-LogEntry -Type Information -Message "Starting to create RRAS Server"
             new-vm -Name $RRASname -MemoryStartupBytes 8Gb -VHDPath $rrasvhdx -Generation 2 | out-null # | Set-VMMemory -DynamicMemoryEnabled:$false
             Enable-VMIntegrationService -VMName $RRASname -Name "Guest Service Interface"
+            if($vmSnapshotenabled.IsPresent){
+                set-vm -Name $RRASname -CheckpointType Disabled
+            }
             Write-LogEntry -Type Information -Message "RRAS Server has been created"
             if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object {$_.name -match "RRAS Server Should exist"}).Result -notmatch "Passed") {Write-LogEntry -Type Error -message "Error Creating the VHDX for RRAS"; throw "Error Creating the VHDX for RRAS"}
         }
@@ -198,7 +204,10 @@ function new-DC {
         $admpwd,
         [Parameter(Mandatory)]
         [pscredential]
-        $domuser
+        $domuser,
+        [parameter(Mandatory=$false)]
+        [switch]
+        $vmSnapshotenabled
     )
     Write-LogEntry -Message "DC Server Started: $(Get-Date)" -Type Information
     $dcname = "$($envconfig.env)`DC"
@@ -223,6 +232,9 @@ function new-DC {
             Write-LogEntry -Message "Starting to create $dcname server" -Type Information
             new-vm -Name $dcname -MemoryStartupBytes 8Gb -VHDPath $dcvhdx -Generation 2
             Enable-VMIntegrationService -VMName $dcname -Name "Guest Service Interface"
+            if($vmSnapshotenabled.IsPresent){
+                set-vm -name $dcname -checkpointtype Disabled
+            }
             Write-LogEntry -Message "$DCname has been created" -Type Information
             start-vm -Name $dcname
             Write-LogEntry -Message "DC server named $dcname has been started"
@@ -251,7 +263,7 @@ function new-DC {
         while ((Invoke-Command -VMName $dcname -Credential $domuser {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 5}
         $dcsessiondom = New-PSSession -VMName $dcname -Credential $domuser
         Write-LogEntry -Message "PowerShell Direct session for $($domuser.UserName) has been initated with DC Service named: $dcname" -Type Information
-        Invoke-Command -Session $dcsessiondom -ScriptBlock {Import-Module ActiveDirectory; $root = (Get-ADRootDSE).defaultNamingContext; if (!([adsi]::Exists("LDAP://CN=System Management,CN=System,$root"))) {$smcontainer = New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru}; $acl = get-acl "ad:CN=System Management,CN=System,$root"; new-adgroup -name "SCCM Servers" -groupscope Global; $objGroup = Get-ADGroup -filter {Name -eq "SCCM Servers"}; $All = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::SelfAndChildren; $ace = new-object System.DirectoryServices.ActiveDirectoryAccessRule $objGroup.SID, "GenericAll", "Allow", $All; $acl.AddAccessRule($ace); Set-acl -aclobject $acl "ad:CN=System Management,CN=System,$root"}
+        Invoke-Command -Session $dcsessiondom -ScriptBlock {Import-Module ActiveDirectory; $root = (Get-ADRootDSE).defaultNamingContext; if (!([adsi]::Exists("LDAP://CN=System Management,CN=System,$root"))) {$null= New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru}; $acl = get-acl "ad:CN=System Management,CN=System,$root"; new-adgroup -name "SCCM Servers" -groupscope Global; $objGroup = Get-ADGroup -filter {Name -eq "SCCM Servers"}; $All = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::SelfAndChildren; $ace = new-object System.DirectoryServices.ActiveDirectoryAccessRule $objGroup.SID, "GenericAll", "Allow", $All; $acl.AddAccessRule($ace); Set-acl -aclobject $acl "ad:CN=System Management,CN=System,$root"}
         Write-LogEntry -Message "System Management Container created in $DomainFQDN forrest on $dcname" -type Information
         $dcsessiondom | Remove-PSSession
     }
@@ -293,7 +305,10 @@ function new-SCCMServer {
         $cmsitecode,
         [Parameter(Mandatory)]
         [string]
-        $SCCMDLPreDown
+        $SCCMDLPreDown,
+        [parameter(Mandatory=$false)]
+        [switch]
+        $vmSnapshotenabled
     )
     Write-logentry -message "CM Server Started: $(Get-Date)" -type information
     $cmname = "$($envconfig.env)`CM"
@@ -322,12 +337,14 @@ function new-SCCMServer {
             write-logentry -message "Error creating VHDX for CM. BUILD STOPPED" -type error
             throw "Error Creating the VHDX for CM"
         }
-        #TODO: add more event logging after this point.
         else {
             write-logentry -message "Starting to create $cmname" -type information
             new-vm -name $cmname -MemoryStartupBytes 12gb -VHDPath $cmvhdx -Generation 2 | Set-VMMemory -DynamicMemoryEnabled:$false 
             write-logentry -message "Setting vCPU for $cmname to 4" -type information
             get-vm -name $cmname | Set-VMProcessor -Count 4
+            if($vmSnapshotenabled.IsPresent){
+                set-vm -name $cmname -checkpointtype Disabled
+            }
             write-logentry -message "$cmname has been created" -type information
             start-vm -Name $cmname
             write-logentry -message "CM Server named $cmname has been started" -type information
@@ -336,7 +353,7 @@ function new-SCCMServer {
         }
         while ((Invoke-Command -VMName $cmname -Credential $localadmin {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 5}
         $cmsessionLA = New-PSSession -vmname $cmname -credential $localadmin
-        if ($cmsessionLA -eq $null) {throw "Issue with CM Local User Account"}
+        if ($null -eq $cmsessionLA) {throw "Issue with CM Local User Account"}
         write-logentry -message "PowerShell Direct session for $($localadmin.username) has been initated with CM server named: $cmname" -type information
         $cmnics = Invoke-Command -session $cmsessionLA -ScriptBlock {Get-NetAdapter}
         write-logentry -message "The following network adaptors $($cmnics -join ",") have been found on: $cmname" -type information
@@ -358,7 +375,7 @@ function new-SCCMServer {
         }
         $cmsession = New-PSSession -VMName $cmname -Credential $domuser
         write-logentry -message "PowerShell Direct session for $($domuser.username) has been initated with CM Server named: $cmname" -type information
-        if ($cmsession -eq $null) {throw "Issue with CM Domain User Account"}
+        if ($null -eq $cmsession) {throw "Issue with CM Domain User Account"}
         if (((Invoke-Pester -TestName "CM" -PassThru -show None).TestResult | Where-Object {$_.name -match "CM .Net Feature installed"}).result -notmatch "Passed") {
             Invoke-Command -session $cmsession -ScriptBlock {Add-WindowsFeature -Name NET-Framework-Features, NET-Framework-Core -Source "C:\data"} | Out-Null
             write-logentry -message ".Net 3.5 enabled on $CMname" -type information
@@ -551,7 +568,10 @@ function new-CAServer {
         $admpwd,
         [Parameter(Mandatory)]
         [string]
-        $domainnetbios
+        $domainnetbios,
+        [parameter(Mandatory=$false)]
+        [switch]
+        $vmSnapshotenabled
     )
     Write-LogEntry -Message "CA Server Started: $(Get-Date)" -Type Information
     $cAname = "$($envconfig.env)`CA"
@@ -574,6 +594,9 @@ function new-CAServer {
         else {
             Write-LogEntry -Message "Starting to create CA Server" -Type Information
             new-vm -name $cAname -MemoryStartupBytes 4gb -VHDPath $cAvhdx -Generation 2 | Set-VMMemory -DynamicMemoryEnabled:$false 
+            if($vmSnapshotenabled.IsPresent){
+                set-vm -name $caname -checkpointtype Disabled
+            }
             get-vm -name $cAname | Set-VMProcessor -Count 4
             Write-LogEntry -Message "$cAname has been created" -Type Information
             start-vm -Name $cAname
@@ -584,7 +607,7 @@ function new-CAServer {
         while ((Invoke-Command -VMName $cAname -Credential $localadmin {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 5}
         $cAsessionLA = New-PSSession -vmname $cAname -credential $localadmin
         Write-LogEntry -Message "PowerShell Direct session for $($localadmin.UserName) has been initiated to $cAname" -Type Information
-        if ($casessionLA -eq $null) {throw "Issue with CA Local User Account"}
+        if ($null -eq $casessionLA) {throw "Issue with CA Local User Account"}
         $canics = Invoke-Command -session $casessionLA -ScriptBlock {Get-NetAdapter}
         Write-LogEntry -Message "Network Adaptor $($canics -join ",") were found on $cAname" -Type Information
         if (((Invoke-Pester -TestName "CA" -PassThru -show None).TestResult | Where-Object {$_.name -match "CA IP Address"}).result -notmatch "Passed") {
@@ -620,11 +643,21 @@ function new-CAServer {
 function new-LabVHDX {
     param
     (
-        [string]$vhdxpath,
-        [string]$unattend,
-        [switch]$core = $false,
-        [string]$WinISO,
-        [String]$WinNet35Cab
+    [parameter(Mandatory)]    
+    [string]
+    $vhdxpath,
+    [parameter(Mandatory)]
+    [string]
+    $unattend,
+    [parameter(Mandatory)]
+    [switch]
+    $core,
+    [parameter(Mandatory)]
+    [string]
+    $WinISO,
+    [parameter(Mandatory)]
+    [String]
+    $WinNet35Cab
     )
     $convmod = get-module -ListAvailable -Name 'Convert-WindowsImage'
     if ($convmod.count -ne 1) {
@@ -635,12 +668,27 @@ function new-LabVHDX {
     }
     Import-module -name 'Convert-Windowsimage'
     $cornum = 2
-    if ($core) {$cornum = 3}else {$cornum = 4}
+    if ($core.IsPresent) {$cornum = 3}else {$cornum = 4}
     Convert-WindowsImage -SourcePath $WinISO -Edition $cornum -VhdType Dynamic -VhdFormat VHDX -VhdPath $vhdxpath -DiskLayout UEFI -SizeBytes 127gb -UnattendPath $unattend
     $drive = (Mount-VHD -Path $vhdxpath -Passthru | Get-Disk | Get-Partition | Where-Object {$_.type -eq 'Basic'}).DriveLetter
     new-item "$drive`:\data" -ItemType Directory | Out-Null
     Copy-Item -Path $WinNet35Cab -Destination "$drive`:\data\microsoft-windows-netfx3-ondemand-package.cab"
     Dismount-VHD -Path $vhdxpath
+}
+
+function Set-LabSettings {
+#enable DHCP
+#add CMServer to the SCCM Server AD group
+#Configure Boundry
+#Install SCCM Client on other VM's
+#download Adventureworks DB from GitHub and put into the CMServer
+#   - use CMServer SQL Instance to create dummy users
+#   - install ADDS Powershell commandlets
+#process to create x number of workstation clients
+#Download and install SSMS
+#Download and install VSCode
+#process to create x number of dummy clients
+#find a solution to ensure the latest TP is installed
 }
 
 function Write-LogEntry {
@@ -679,7 +727,9 @@ function Write-LogEntry {
     $logline | Out-File -Append -Encoding utf8 -FilePath $Logfile -Force
     Write-Verbose $Message
 }
+#endregion
 
+#region import JSON Settings
 $scriptpath = $PSScriptRoot
 $config = Get-Content "$scriptpath\env.json" -Raw | ConvertFrom-Json
 $envConfig = $config.ENVConfig | Where-Object {$_.env -eq $config.env}
@@ -708,9 +758,14 @@ $cmsitecode = $envConfig.CMSiteCode
 Write-LogEntry -Type Information -Message "SCCM Site code is: $cmsitecode"
 $SCCMDLPreDown = $config.SCCMDLPreDown
 Write-LogEntry -Type Information -Message "SCCM Content was Predownloaded: $($sccmdlpredown -eq 1)"
+$vmsnapshot = if($config.Enablesnapshot -eq 1){$true}else{$false} 
+Write-LogEntry -Type Information -Message "Snapshots have been: $vmsnapshot"
+#endregion 
 
+#region create VMs
 new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname
-new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub
-new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser
-new-SCCMServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -cmsitecode $cmsitecode -SCCMDLPreDown $SCCMDLPreDown
-new-CAServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios
+new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub -vmSnapshotenabled:$vmsnapshot
+new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser -vmSnapshotenabled:$vmsnapshot
+new-SCCMServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -cmsitecode $cmsitecode -SCCMDLPreDown $SCCMDLPreDown -vmSnapshotenabled:$vmsnapshot
+new-CAServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -vmSnapshotenabled:$vmsnapshot
+#endregion

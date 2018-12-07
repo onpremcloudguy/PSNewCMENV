@@ -30,13 +30,14 @@ Describe "RRAS" -Tag ("Network", "RRAS", "VM") {
     it 'RRAS VHDX Should exist' {$tRRASVHDXExists | should be $true}
     it 'RRAS Server Should exist' {$tRRASExist | should be 1}    
     it 'RRAS Server is Running' {$trrasrunning | should be 1}
-    it 'RRAS Routing Installed' -Skip:(!($tRRASExist -eq 1)) {$rrasfeat | should be "Installed"}
-    it 'RRAS External NIC Renamed' -Skip:(!($tRRASExist -eq 1)) {$rrasEXTrename | should be "External"}
-    it 'RRAS Lab NIC Renamed' -Skip:(!($tRRASExist -eq 1)) {$rrasLABrename | should be $config.ENV}
-    it 'RRAS Lab IP Address Set' -Skip:(!($tRRASExist -eq 1)) {$rrasLabIPAddress | should be "$ipsub`1"}
-    it 'RRAS VPN enabled' -Skip:(!($tRRASExist -eq 1)) {$rrasVPNStatus.VpnStatus | should be 'Installed'}
-    it 'RRAS has access to Internet' -Skip:(!($tRRASExist -eq 1)) {$tRRASInternet | should be $true}
+    it 'RRAS Routing Installed' -Skip:(!($tRRASExist -eq 1 -and $trrasrunning -eq 1)) {$rrasfeat | should be "Installed"}
+    it 'RRAS External NIC Renamed' -Skip:(!($tRRASExist -eq 1 -and $trrasrunning -eq 1)) {$rrasEXTrename | should be "External"}
+    it 'RRAS Lab NIC Renamed' -Skip:(!($tRRASExist -eq 1 -and $trrasrunning -eq 1)) {$rrasLABrename | should be $config.ENV}
+    it 'RRAS Lab IP Address Set' -Skip:(!($tRRASExist -eq 1 -and $trrasrunning -eq 1)) {$rrasLabIPAddress | should be "$ipsub`1"}
+    it 'RRAS VPN enabled' -Skip:(!($tRRASExist -eq 1 -and $trrasrunning -eq 1)) {$rrasVPNStatus.VpnStatus | should be 'Installed'}
+    it 'RRAS has access to Internet' -Skip:(!($tRRASExist -eq 1 -and $trrasrunning -eq 1)) {$tRRASInternet | should be $true}
 }
+
 Describe "DC" -Tag ("Domain", "VM") {
     $TDCVHDXExists = (Test-Path -path "$vmpath\$($dcname)c.vhdx")
     $TDCExists = (get-vm -name $DCName -ErrorAction SilentlyContinue).count
@@ -53,11 +54,12 @@ Describe "DC" -Tag ("Domain", "VM") {
     it 'DC VHDX Should Exist' {$TDCVHDXExists | should be $true}
     it "DC Should Exist" {$TDCExists | should be 1}
     it "DC Should be running" {$TDCRunning | should be 1}
-    it 'DC IP Address' -Skip:(!($TDCExists -eq 1)) {$TDCIPAddress | should be "$ipsub`10"}
-    it 'DC has access to Internet' -Skip:(!($TDCExists -eq 1)) {$TDCTestInternet | should be $true}
-    it 'DC Domain Services Installed' -Skip:(!($TDCExists -eq 1)) {$TDCFeat | should be "Installed"}
-    it 'DC Promoted' -Skip:(!($TDCExists -eq 1)) {$TDCPromoted | should be "Running"}
+    it 'DC IP Address' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCIPAddress | should be "$ipsub`10"}
+    it 'DC has access to Internet' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCTestInternet | should be $true}
+    it 'DC Domain Services Installed' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCFeat | should be "Installed"}
+    it 'DC Promoted' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCPromoted | should be "Running"}
 }
+
 Describe "CM" -tag ("ConfigMgr","VM") {
     $TCMVHDXExists = (Test-Path -path "$vmpath\$($CMname)c.vhdx")
     $TCMExists = (get-vm -name $CMname -ErrorAction SilentlyContinue).count
@@ -78,14 +80,14 @@ Describe "CM" -tag ("ConfigMgr","VM") {
     it 'CM VHDX Should Exist' {$TCMVHDXExists | should be $true}
     it 'CM Should Exist' {$TCMExists | should be 1}
     it 'CM Should be running' {$TCMRunning | should be 1}
-    it 'CM IP Address' -Skip:(!($TCMExists -eq 1)) {$TCMIPAddress | should be "$ipsub`11"}
-    it 'CM has access to Internet' -Skip:(!($TCMExists -eq 1)) {$TCMTestInternet | should be $true}
-    it "CM has access to $DomainFQDN" -Skip:(!($TCMExists -eq 1)) {$TCMTestDomain | Should be $true}
-    it 'CM .Net Feature installed' -Skip:(!($TCMExists -eq 1)) {$TCMNetFeat | should be 2}
-    it 'CM Features are installed' -Skip:(!($TCMExists -eq 1)) {$TCMFeat | should be 44}
-    it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1)) {$TCMSQLInstalled | should be 1}
-    it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1)) {$TCMADKInstalled | should be $true}
-    it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1)) {$TCMSCCMInstalled | should be 1}
+    it 'CM IP Address' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMIPAddress | should be "$ipsub`11"}
+    it 'CM has access to Internet' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestInternet | should be $true}
+    it "CM has access to $DomainFQDN" -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestDomain | Should be $true}
+    it 'CM .Net Feature installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMNetFeat | should be 2}
+    it 'CM Features are installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMFeat | should be 44}
+    it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSQLInstalled | should be 1}
+    it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMADKInstalled | should be $true}
+    it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
 }
 
 Describe "CA" -tag ("CA","VM") {
@@ -104,10 +106,10 @@ Describe "CA" -tag ("CA","VM") {
     it 'CA VHDX Should Exist' {$TCAVHDXExists | should be $true}
     it 'CA Should Exist' {$TCAExists | should be 1}
     it 'CA Should be running' {$TCARunning | should be 1}
-    it 'CA IP Address' -Skip:(!($TCAExists -eq 1)) {$TCAIPAddress | should be "$ipsub`12"}
-    it 'CA has access to Internet' -Skip:(!($TCAExists -eq 1)) {$TCATestInternet | should be $true}
-    it "CA has access to $DomainFQDN" -Skip:(!($TCAExists -eq 1)) {$TCATestDomain | Should be $true}
-    it 'CA Feature is installed' -Skip:(!($TCAExists -eq 1)) {$TCAFeat | should be 1}
+    it 'CA IP Address' -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCAIPAddress | should be "$ipsub`12"}
+    it 'CA has access to Internet' -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCATestInternet | should be $true}
+    it "CA has access to $DomainFQDN" -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCATestDomain | Should be $true}
+    it 'CA Feature is installed' -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCAFeat | should be 1}
 
 }
 
@@ -117,6 +119,7 @@ Describe "vSwitch" -tag "Network" {
     it "Lab VMSwitch Should exist" {$lresult | should be 1}
     it 'Internet VSwitch should exist' {$Iresult | should be 1}
 }
+
 Describe "Reference-VHDX" -Tag ("VM", "Template") {
     $result = (Test-Path -Path "$RefVHDX")
     it 'VHDX Should exist' {$result | should be $true}
