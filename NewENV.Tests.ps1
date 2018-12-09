@@ -113,7 +113,7 @@ Describe "CA" -tag ("CA","VM") {
 
 }
 
-Describe "vSwitch" -tag "Network" {
+Describe "vSwitch" -tag ("Network", "ENV") {
     $lresult = (Get-VMSwitch -Name $swname -ErrorAction SilentlyContinue).count
     $Iresult = (Get-VMSwitch -Name "Internet" -ErrorAction SilentlyContinue).count
     it "Lab VMSwitch Should exist" {$lresult | should be 1}
@@ -123,4 +123,17 @@ Describe "vSwitch" -tag "Network" {
 Describe "Reference-VHDX" -Tag ("VM", "Template") {
     $result = (Test-Path -Path "$RefVHDX")
     it 'VHDX Should exist' {$result | should be $true}
+}
+
+Describe "Test Source Media" -tag ("VM","ENV") {
+    $Win16iso = (Test-path -Path "$($config.WIN16ISO)")
+    $SQLMedia = (Test-Path -Path "$($config.SQLISO)")
+    $adkmedia = (Test-Path -Path "$($config.ADKPATH)")
+    $SCCMMedia = (Test-Path -Path "$($config.SCCMPath)")
+    $net35path = (Test-Path -Path "$($config.WINNET35CAB)")
+    it 'Windows 2016 source media' {$Win16iso | should be $true }
+    it 'SQL 2016 Media' {$SQLMedia | Should be $true }
+    it 'ADK Content' {$adkmedia | should be $true }
+    it 'SCCM Media' {$SCCMMedia | should be $true }
+    it '.net 3.5 Media' {$net35path | should be $true }
 }
