@@ -15,7 +15,10 @@ function new-ENV {
         $config,
         [Parameter(Mandatory)]
         [string]
-        $swname
+        $swname,
+        [Parameter(Mandatory)]
+        [string]
+        $dftpwd
     )
     if ($domuser -eq $null) {throw "Issue with the Dom User"}
     Write-LogEntry -Type Information -Message "Creating the base requirements for Lab Environment"
@@ -26,8 +29,12 @@ function new-ENV {
     else {
         if (!(Test-Path $vmpath)) {New-Item -ItemType Directory -Force -Path $vmpath}
         else {
+            if(!(Test-Path "$($scriptpath)\unattended.xml"))
+            {
+                New-UnattendXml -admpwd $dftpwd -outfile "$($scriptpath)\unattended.xml"
+            }
             Write-LogEntry -Type Information -Message "Reference image doesn't exist, will create it now"
-            new-LabVHDX -VHDXPath $RefVHDX -Unattend "$scriptpath\unattended.xml" -WinISO $config.WIN16ISO -WinNet35Cab $config.WINNET35CAB
+            new-LabVHDX -VHDXPath $RefVHDX -Unattend "$($scriptpath)\unattended.xml" -WinISO $config.WIN16ISO -WinNet35Cab $config.WINNET35CAB
             Write-LogEntry -Type Information -Message "Reference image has been created in: $refvhdx"
         }
     }
@@ -676,6 +683,66 @@ function new-LabVHDX {
     Dismount-VHD -Path $vhdxpath
 }
 
+function New-UnattendXml
+{
+    [CmdletBinding()]
+    Param
+    (
+        # The password to have unattnd.xml set the local Administrator to
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [ValidateNotNullOrEmpty()]
+        [Alias('password')] 
+        [string]
+        $admpwd,
+        [Parameter(Mandatory)]
+        [string]
+        $outfile
+    )
+$unattendTemplate = [xml]@" 
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+    <servicing>
+        <package action="install" permanence="removable">
+            <assemblyIdentity name="Microsoft-Windows-NetFx3-OnDemand-Package" version="10.0.14393.0" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" />
+            <source location="c:\data\microsoft-windows-netfx3-ondemand-package.cab" />
+        </package>
+    </servicing>
+    <settings pass="oobeSystem">
+        <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <UserAccounts>
+                <AdministratorPassword>
+                    <Value><<ADM_PWD>></Value> 
+                    <PlainText>True</PlainText> 
+                </AdministratorPassword>
+            </UserAccounts>
+            <OOBE>
+                <VMModeOptimizations>
+                    <SkipNotifyUILanguageChange>true</SkipNotifyUILanguageChange>
+                    <SkipWinREInitialization>true</SkipWinREInitialization>
+                </VMModeOptimizations>
+                <SkipMachineOOBE>true</SkipMachineOOBE>
+                <HideEULAPage>true</HideEULAPage>
+                <HideLocalAccountScreen>true</HideLocalAccountScreen>
+                <ProtectYourPC>3</ProtectYourPC>
+                <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+                <NetworkLocation>Work</NetworkLocation>
+                <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+            </OOBE>
+        </component>
+        <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <InputLocale>en-au</InputLocale>
+            <SystemLocale>en-us</SystemLocale>
+            <UILanguage>en-au</UILanguage>
+            <UILanguageFallback>en-us</UILanguageFallback>
+            <UserLocale>en-au</UserLocale>
+        </component>
+    </settings>
+</unattend>
+"@
+$unattendTemplate -replace "<<ADM_PWD>>", $admpwd | Out-File -FilePath $outfile -Encoding utf8
+}
+
 function Set-LabSettings {
 #enable DHCP
 #add CMServer to the SCCM Server AD group
@@ -760,6 +827,8 @@ $SCCMDLPreDown = $config.SCCMDLPreDown
 Write-LogEntry -Type Information -Message "SCCM Content was Predownloaded: $($sccmdlpredown -eq 1)"
 $vmsnapshot = if($config.Enablesnapshot -eq 1){$true}else{$false} 
 Write-LogEntry -Type Information -Message "Snapshots have been: $vmsnapshot"
+$unattendpath = $config.REFVHDX -replace ($config.REFVHDX.split('\') | Select-Object -last 1), "Unattended.xml"
+Write-LogEntry -Type Information -Message "Windows 2016 unattend file is: $unattendpath"
 #endregion 
 
 #region create VMs

@@ -131,7 +131,10 @@ Describe "Test Source Media" -tag ("VM","ENV") {
     $adkmedia = (Test-Path -Path "$($config.ADKPATH)")
     $SCCMMedia = (Test-Path -Path "$($config.SCCMPath)")
     $net35path = (Test-Path -Path "$($config.WINNET35CAB)")
+    $unattendpath = $config.REFVHDX -replace ($config.REFVHDX.split('\') | Select-Object -last 1), "Unattended.xml"
+    $win16unattend = (test-path "$($unattendpath)")
     it 'Windows 2016 source media' {$Win16iso | should be $true }
+    it 'Windows 2016 Unattend' {$win16unattend | should be $true }
     it 'SQL 2016 Media' {$SQLMedia | Should be $true }
     it 'ADK Content' {$adkmedia | should be $true }
     it 'SCCM Media' {$SCCMMedia | should be $true }
