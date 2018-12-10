@@ -76,6 +76,7 @@ Describe "CM" -tag ("ConfigMgr","VM") {
         $TCMNetFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name NET-Framework-Features, NET-Framework-Core) | Where-Object {$_.installstate -eq "Installed"}}).count
         $TCMSQLInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "MSSQLSERVER" -ErrorAction SilentlyContinue}).name.count
         $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit"})
+        $TCMSCCMServerinGRP = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-ADGroupMember "SCCM Servers" | Where-Object {$_.name -eq $env:computername}}).name.count
         $TCMSCCMInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "SMS_EXECUTIVE" -ErrorAction SilentlyContinue}).name.count
         $TCMSCCMConsoleInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe"})
         $TCMSession | Remove-PSSession
@@ -90,6 +91,7 @@ Describe "CM" -tag ("ConfigMgr","VM") {
     it 'CM Features are installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMFeat | should be 44}
     it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSQLInstalled | should be 1}
     it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMADKInstalled | should be $true}
+    it 'CM Server in Group' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMServerinGRP | should be 1}
     it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
     it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
 }
