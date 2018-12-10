@@ -49,6 +49,7 @@ Describe "DC" -Tag ("Domain", "VM") {
         $TDCFeat = (Invoke-Command -Session $TDCSession -ScriptBlock {(get-windowsfeature -name AD-Domain-Services).installstate}).value
         $TDCTestInternet = (Invoke-Command -Session $TDCSession -ScriptBlock {test-netconnection "steven.hosking.com.au" -CommonTCPPort HTTP -WarningAction SilentlyContinue}).TcpTestSucceeded
         $TDCPromoted = (Invoke-Command -Session $TDCSession -ScriptBlock {Get-Service -Name "NTDS" -ErrorAction SilentlyContinue}).status
+        $TDCDHCPScopeexists = (Invoke-Command -Session $TDCSession -ScriptBlock {Get-DhcpServerv4Scope})
         $TDCSession | Remove-PSSession
     }
     it 'DC VHDX Should Exist' {$TDCVHDXExists | should be $true}
@@ -58,6 +59,7 @@ Describe "DC" -Tag ("Domain", "VM") {
     it 'DC has access to Internet' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCTestInternet | should be $true}
     it 'DC Domain Services Installed' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCFeat | should be "Installed"}
     it 'DC Promoted' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCPromoted | should be "Running"}
+    it "DC DHCP Scope Active" -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCDHCPScopeexists[0].State | should be "Active"}
 }
 
 Describe "CM" -tag ("ConfigMgr","VM") {
@@ -75,6 +77,7 @@ Describe "CM" -tag ("ConfigMgr","VM") {
         $TCMSQLInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "MSSQLSERVER" -ErrorAction SilentlyContinue}).name.count
         $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit"})
         $TCMSCCMInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "SMS_EXECUTIVE" -ErrorAction SilentlyContinue}).name.count
+        $TCMSCCMConsoleInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe"})
         $TCMSession | Remove-PSSession
     }
     it 'CM VHDX Should Exist' {$TCMVHDXExists | should be $true}
@@ -88,6 +91,7 @@ Describe "CM" -tag ("ConfigMgr","VM") {
     it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSQLInstalled | should be 1}
     it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMADKInstalled | should be $true}
     it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
+    it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
 }
 
 Describe "CA" -tag ("CA","VM") {

@@ -272,6 +272,9 @@ function new-DC {
         Write-LogEntry -Message "PowerShell Direct session for $($domuser.UserName) has been initated with DC Service named: $dcname" -Type Information
         Invoke-Command -Session $dcsessiondom -ScriptBlock {Import-Module ActiveDirectory; $root = (Get-ADRootDSE).defaultNamingContext; if (!([adsi]::Exists("LDAP://CN=System Management,CN=System,$root"))) {$null= New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru}; $acl = get-acl "ad:CN=System Management,CN=System,$root"; new-adgroup -name "SCCM Servers" -groupscope Global; $objGroup = Get-ADGroup -filter {Name -eq "SCCM Servers"}; $All = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::SelfAndChildren; $ace = new-object System.DirectoryServices.ActiveDirectoryAccessRule $objGroup.SID, "GenericAll", "Allow", $All; $acl.AddAccessRule($ace); Set-acl -aclobject $acl "ad:CN=System Management,CN=System,$root"}
         Write-LogEntry -Message "System Management Container created in $DomainFQDN forrest on $dcname" -type Information
+        Write-LogEntry -Type Information -Message "Configuring DHCP Server"
+        Invoke-Command -Session $dcsessiondom -ScriptBlock {param($domname, $iprange)Add-DhcpServerInDC; Add-DhcpServerv4Scope -name "$domname" -StartRange "$($iprange).100" -EndRange "$($iprange).150" -SubnetMask "255.255.255.0"} -ArgumentList $domainnetbios, $ipsub | Out-Null
+        Write-LogEntry -Type Information -Message "DHCP Scope has been configured for $($ipsub).100 to $($ipsub).150 with a mask of 255.255.255.0"
         $dcsessiondom | Remove-PSSession
     }
     Write-LogEntry -Message "DC Server Completed: $(Get-Date)" -Type Information
@@ -538,6 +541,8 @@ function new-SCCMServer {
             }
             Invoke-Command -Session $cmsession -ScriptBlock {Get-Process setupwpf | Stop-Process -Force}
             write-logentry -message "SCCM has been installed on $cmname" -type information
+            Invoke-Command -Session $cmsession -ScriptBlock {start-process C:\data\SCCM\SMSSETUP\BIN\I386\ConsoleSetup.exe -ArgumentList '/q TargetDir="C:\Program Files (x86)\Microsoft Configuration Manager" DefaultSiteServerName=localhost' -Wait}
+            Write-LogEntry -Message "SCCM Console has been installed on $cmname" -Type Information
             $cmsession | remove-PSSession
             write-logentry -message "Powershell Direct session for $($domuser.username) on $cmname has been disposed" -type information
         }
@@ -683,8 +688,7 @@ function new-LabVHDX {
     Dismount-VHD -Path $vhdxpath
 }
 
-function New-UnattendXml
-{
+function New-UnattendXml{
     [CmdletBinding()]
     Param
     (
@@ -744,7 +748,6 @@ $unattendTemplate -replace "<<ADM_PWD>>", $admpwd | Out-File -FilePath $outfile 
 }
 
 function Set-LabSettings {
-#enable DHCP
 #add CMServer to the SCCM Server AD group
 #Configure Boundry
 #Install SCCM Client on other VM's
