@@ -544,6 +544,16 @@ function new-SCCMServer {
             write-logentry -message "SCCM has been installed on $cmname" -type information
             Invoke-Command -Session $cmsession -ScriptBlock {start-process C:\data\SCCM\SMSSETUP\BIN\I386\ConsoleSetup.exe -ArgumentList '/q TargetDir="C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole" DefaultSiteServerName=localhost' -Wait}
             Write-LogEntry -Message "SCCM Console has been installed on $cmname" -Type Information
+            #######
+            import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; 
+            Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"; 
+            New-CMBoundary -Type IPSubnet -Value "172.16.30.0/24" -name "TP3";
+            $cmboundgrp = New-CMBoundaryGroup -name "TP3" -DefaultSiteCode "$((Get-PSDrive -PSProvider CMSite).name)";
+            Add-CMBoundaryToGroup -BoundaryName "TP3" -BoundaryGroupName "TP3"
+            $Schedule = New-CMSchedule -RecurInterval Minutes -Start "2012/10/20 00:00:00" -End "2013/10/20 00:00:00" -RecurCount 10 
+            Set-CMDiscoveryMethod -ActiveDirectorySystemDiscovery -SiteCode "TP1" -Enabled $True -EnableDeltaDiscovery $True -PollingSchedule $Schedule -AddActiveDirectoryContainer "LDAP://DC=tp3,DC=lab,DC=corp" -Recursive
+            Get-CMDevice | Where-Object {$_.ADSiteName -eq "Default-First-Site-Name"} | Install-CMClient -IncludeDomainController $true -AlwaysInstallClient $true -SiteCode TP1
+            #######
             $cmsession | remove-PSSession
             write-logentry -message "Powershell Direct session for $($domuser.username) on $cmname has been disposed" -type information
         }

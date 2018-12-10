@@ -94,6 +94,9 @@ Describe "CM" -tag ("ConfigMgr","VM") {
     it 'CM Server in Group' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMServerinGRP | should be 1}
     it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
     it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
+    ########
+    #TODO: Add in tests for SCCM Boundaries, Discovery
+    ########
 }
 
 Describe "CA" -tag ("CA","VM") {
