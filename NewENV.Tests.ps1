@@ -139,13 +139,15 @@ Describe "Test Source Media" -tag ("VM","ENV") {
     $SQLMedia = (Test-Path -Path "$($config.SQLISO)")
     $adkmedia = (Test-Path -Path "$($config.ADKPATH)")
     $SCCMMedia = (Test-Path -Path "$($config.SCCMPath)")
+    $SCCMDLMedia = (Test-Path -Path "$($config.SCCMPath)\DL")
     $net35path = (Test-Path -Path "$($config.WINNET35CAB)")
-    $unattendpath = $config.REFVHDX -replace ($config.REFVHDX.split('\') | Select-Object -last 1), "Unattended.xml"
+    $unattendpath = $config.REFVHDX -replace ($config.REFVHDX.split('\') | Select-Object -last 1), "Unattended.xml" ## is wrong, need to change to correct path
     $win16unattend = (test-path "$($unattendpath)")
     it 'Windows 2016 source media' {$Win16iso | should be $true }
     it 'Windows 2016 Unattend' {$win16unattend | should be $true }
     it 'SQL 2016 Media' {$SQLMedia | Should be $true }
     it 'ADK Content' {$adkmedia | should be $true }
     it 'SCCM Media' {$SCCMMedia | should be $true }
+    it 'SCCM Download Media' {$SCCMDLMedia | should be $true }
     it '.net 3.5 Media' {$net35path | should be $true }
 }

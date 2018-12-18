@@ -471,7 +471,7 @@ function new-SCCMServer {
         if (((Invoke-Pester -TestName "CM" -PassThru -show None).TestResult | Where-Object {$_.name -match "CM SCCM Installed"}).result -notmatch "Passed") {
             $cmOSName = Invoke-Command -Session $cmsession -ScriptBlock {$env:COMPUTERNAME}
             write-logentry -message "Host name for $cmname is: $cmosname"
-            $cmsitecode = "TP1"
+            $cmsitecode = "$cmsitecode"
             if ($config.SCCMVersion -eq "Prod") {
                 $hashident = @{'action' = 'InstallPrimarySite'
                 }
@@ -540,20 +540,24 @@ function new-SCCMServer {
             while ((invoke-command -Session $cmsession -ScriptBlock {get-content C:\ConfigMgrSetup.log | Select-Object -last 1 | Where-Object {$_ -like 'ERROR: Failed to ExecuteConfigureServiceBrokerSp*'}}).count -eq 0) {
                 start-sleep -seconds 15
             }
+            ## better handle the SCCM Console Install
+            ## can't run the below commands until the SCCM Console is installed, need to put a pester check in.
+            ## Computer in group not working.
             Invoke-Command -Session $cmsession -ScriptBlock {Get-Process setupwpf | Stop-Process -Force}
             write-logentry -message "SCCM has been installed on $cmname" -type information
             Invoke-Command -Session $cmsession -ScriptBlock {start-process C:\data\SCCM\SMSSETUP\BIN\I386\ConsoleSetup.exe -ArgumentList '/q TargetDir="C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole" DefaultSiteServerName=localhost' -Wait}
             Write-LogEntry -Message "SCCM Console has been installed on $cmname" -Type Information
-            #######
-            import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; 
-            Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"; 
-            New-CMBoundary -Type IPSubnet -Value "172.16.30.0/24" -name "TP3";
-            $cmboundgrp = New-CMBoundaryGroup -name "TP3" -DefaultSiteCode "$((Get-PSDrive -PSProvider CMSite).name)";
-            Add-CMBoundaryToGroup -BoundaryName "TP3" -BoundaryGroupName "TP3"
-            $Schedule = New-CMSchedule -RecurInterval Minutes -Start "2012/10/20 00:00:00" -End "2013/10/20 00:00:00" -RecurCount 10 
-            Set-CMDiscoveryMethod -ActiveDirectorySystemDiscovery -SiteCode "TP1" -Enabled $True -EnableDeltaDiscovery $True -PollingSchedule $Schedule -AddActiveDirectoryContainer "LDAP://DC=tp3,DC=lab,DC=corp" -Recursive
-            Get-CMDevice | Where-Object {$_.ADSiteName -eq "Default-First-Site-Name"} | Install-CMClient -IncludeDomainController $true -AlwaysInstallClient $true -SiteCode TP1
-            #######
+            invoke-command -session $cmsession -scriptblock {
+                param($ipsub, $sitecode, $Subnetname, $DomainDN)
+                import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; 
+                    Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"; 
+                    New-CMBoundary -Type IPSubnet -Value "$($ipsub).0/24" -name $Subnetname;
+                    New-CMBoundaryGroup -name $Subnetname -DefaultSiteCode "$((Get-PSDrive -PSProvider CMSite).name)";
+                    Add-CMBoundaryToGroup -BoundaryName $Subnetname -BoundaryGroupName $Subnetname;
+                    $Schedule = New-CMSchedule -RecurInterval Minutes -Start "2012/10/20 00:00:00" -End "2013/10/20 00:00:00" -RecurCount 10;
+                    Set-CMDiscoveryMethod -ActiveDirectorySystemDiscovery -SiteCode $sitecode -Enabled $True -EnableDeltaDiscovery $True -PollingSchedule $Schedule -AddActiveDirectoryContainer "LDAP://$domaindn" -Recursive;
+                    Get-CMDevice | Where-Object {$_.ADSiteName -eq "Default-First-Site-Name"} | Install-CMClient -IncludeDomainController $true -AlwaysInstallClient $true -SiteCode $sitecode;
+                } -ArgumentList $ipsub, $cmsitecode, $domainnetbios, ("dc=" + ($DomainFQDN.Split('.') -join ",dc="))
             $cmsession | remove-PSSession
             write-logentry -message "Powershell Direct session for $($domuser.username) on $cmname has been disposed" -type information
         }
@@ -759,12 +763,8 @@ $unattendTemplate -replace "<<ADM_PWD>>", $admpwd | Out-File -FilePath $outfile 
 }
 
 function Set-LabSettings {
-#add CMServer to the SCCM Server AD group
-#Configure Boundry
-#Install SCCM Client on other VM's
 #download Adventureworks DB from GitHub and put into the CMServer
 #   - use CMServer SQL Instance to create dummy users
-#   - install ADDS Powershell commandlets
 #process to create x number of workstation clients
 #Download and install SSMS
 #Download and install VSCode
@@ -846,7 +846,7 @@ Write-LogEntry -Type Information -Message "Windows 2016 unattend file is: $unatt
 #endregion 
 
 #region create VMs
-new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname
+new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname -dftpwd $admpwd
 new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub -vmSnapshotenabled:$vmsnapshot
 new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser -vmSnapshotenabled:$vmsnapshot
 new-SCCMServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -cmsitecode $cmsitecode -SCCMDLPreDown $SCCMDLPreDown -vmSnapshotenabled:$vmsnapshot
