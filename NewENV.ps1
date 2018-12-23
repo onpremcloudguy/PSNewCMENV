@@ -267,13 +267,16 @@ function new-DC {
         }
         $dcsession | Remove-PSSession
         Write-LogEntry -Type Information -Message "PowerShell Direct Session for $dcname has been disconnected"
-        while ((Invoke-Command -VMName $dcname -Credential $domuser {"Test"} -ErrorAction SilentlyContinue) -ne "Test") {Start-Sleep -Seconds 5}
-        $dcsessiondom = New-PSSession -VMName $dcname -Credential $domuser
-        Write-LogEntry -Message "PowerShell Direct session for $($domuser.UserName) has been initated with DC Service named: $dcname" -Type Information
-        Invoke-Command -Session $dcsessiondom -ScriptBlock {Import-Module ActiveDirectory; New-ADGroup -Name "SCCM Servers" -GroupScope 1; $root = (Get-ADRootDSE).defaultNamingContext; if (!([adsi]::Exists("LDAP://CN=System Management,CN=System,$root"))) {$null= New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru}; $acl = get-acl "ad:CN=System Management,CN=System,$root"; new-adgroup -name "SCCM Servers" -groupscope Global; $objGroup = Get-ADGroup -filter {Name -eq "SCCM Servers"}; $All = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::SelfAndChildren; $ace = new-object System.DirectoryServices.ActiveDirectoryAccessRule $objGroup.SID, "GenericAll", "Allow", $All; $acl.AddAccessRule($ace); Set-acl -aclobject $acl "ad:CN=System Management,CN=System,$root"}
+        while ((Invoke-Command -VMName $dcname -Credential $domuser {(get-command get-adgroup).count} -ErrorAction SilentlyContinue -passthru) -ne 1) {Start-Sleep -Seconds 5}
+        while (((invoke-pester -testname "DC" -passthru -show none).testresult | where-object {$_.name -match "DC SCCM Servers Group"}).result -notmatch "Passed") {
+            $dcsessiondom = New-PSSession -VMName $dcname -Credential $domuser
+            Write-LogEntry -Message "PowerShell Direct session for $($domuser.UserName) has been initated with DC Service named: $dcname" -Type Information
+            Invoke-Command -Session $dcsessiondom -ScriptBlock {Import-Module ActiveDirectory; New-ADGroup -Name "SCCM Servers" -GroupScope 1 -ErrorAction SilentlyContinue -WarningAction SilentlyContinue}
+        }
+        Invoke-Command -Session $dcsessiondom -ScriptBlock {$root = (Get-ADRootDSE).defaultNamingContext; if (!([adsi]::Exists("LDAP://CN=System Management,CN=System,$root"))) {$null= New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru}; $acl = get-acl "ad:CN=System Management,CN=System,$root"; $objGroup = Get-ADGroup -filter {Name -eq "SCCM Servers"}; $All = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::SelfAndChildren; $ace = new-object System.DirectoryServices.ActiveDirectoryAccessRule $objGroup.SID, "GenericAll", "Allow", $All; $acl.AddAccessRule($ace); Set-acl -aclobject $acl "ad:CN=System Management,CN=System,$root"}
         Write-LogEntry -Message "System Management Container created in $DomainFQDN forrest on $dcname" -type Information
         Write-LogEntry -Type Information -Message "Configuring DHCP Server"
-        Invoke-Command -Session $dcsessiondom -ScriptBlock {param($domname, $iprange)Add-DhcpServerInDC; Add-DhcpServerv4Scope -name "$domname" -StartRange "$($iprange).100" -EndRange "$($iprange).150" -SubnetMask "255.255.255.0"} -ArgumentList $domainnetbios, $ipsub | Out-Null
+        Invoke-Command -Session $dcsessiondom -ScriptBlock {param($domname, $iprange)Add-DhcpServerInDC; Add-DhcpServerv4Scope -name "$domname" -StartRange "$($iprange)100" -EndRange "$($iprange)150" -SubnetMask "255.255.255.0"} -ArgumentList $domainnetbios, $ipsub | Out-Null
         Write-LogEntry -Type Information -Message "DHCP Scope has been configured for $($ipsub).100 to $($ipsub).150 with a mask of 255.255.255.0"
         $dcsessiondom | Remove-PSSession
     }
@@ -459,8 +462,19 @@ function new-SCCMServer {
             write-logentry -message "SQL installation has started on $cmname this can take some time" -type information
             Invoke-Command -Session $cmsession -ScriptBlock {param($drive)start-process -FilePath "$drive`Setup.exe" -Wait -ArgumentList "/ConfigurationFile=c:\ConfigurationFile.INI /IACCEPTSQLSERVERLICENSETERMS"} -ArgumentList $sqldisk
             write-logentry -message "SQL installation has completed on $cmname told you it would take some time" -type information
-            #Invoke-Command -Session $cmsession -ScriptBlock {Import-Module sqlps;$wmi = new-object ('Microsoft.SqlServer.Management.Smo.Wmi.ManagedComputer');$Np = $wmi.GetSmoObject("ManagedComputer[@Name='$env:computername']/ ServerInstance[@Name='MSSQLSERVER']/ServerProtocol[@Name='Np']");$Np.IsEnabled = $true;$Np.Alter();Get-Service mssqlserver | Restart-Service}
+            Invoke-Command -Session $cmsession -ScriptBlock {
+                [reflection.assembly]::LoadWithPartialName("Microsoft.SqlServer.Smo") | Out-Null
+                $srv = New-Object Microsoft.SQLServer.Management.Smo.Server($SQLInstanceName)
+                if ($srv.status) {
+                    $srv.Configuration.MaxServerMemory.ConfigValue = 8kb
+                    $srv.Configuration.MinServerMemory.ConfigValue = 4kb   
+                    $srv.Configuration.Alter()
+                }
+            }
             Set-VMDvdDrive -VMName $cmname -Path $null
+            Invoke-Command -session $cmsession -ScriptBlock {Add-WindowsFeature UpdateServices-Services, UpdateServices-db} | Out-Null
+            invoke-command -session $cmsession -scriptblock {start-process -filepath "C:\Program Files\Update Services\Tools\WsusUtil.exe" -ArgumentList "postinstall CONTENT_DIR=C:\WSUS SQL_INSTANCE_NAME=$env:COMPUTERNAME" -Wait}
+            invoke-command -session $cmsession -ScriptBlock {start-process -FilePath "C:\windows\system32\msiexec.exe" -ArgumentList "/I c:\data\sccm\dl\sqlncli.msi /QN REBOOT=ReallySuppress"}
             write-logentry -message "SQL ISO dismounted from $cmname" -type information
         }
         if (((Invoke-Pester -TestName "CM" -PassThru -show None).TestResult | Where-Object {$_.name -match "CM ADK installed"}).result -notmatch "Passed") {
@@ -499,8 +513,9 @@ function new-SCCMServer {
                 'JoinCEIP' = "0";
             }
             $hashSQL = @{'SQLServerName' = "$cmOSName.$DomainFQDN";
+                'SQLServerPort' = '1433';
                 'DatabaseName' = "CM_$cmsitecode";
-                'SQLSSBPort' = '1433'
+                'SQLSSBPort' = '4022'
             }
             $hashCloud = @{
                 'CloudConnector' = "1";
@@ -532,24 +547,12 @@ function new-SCCMServer {
             invoke-command -Session $cmsession -scriptblock {start-process -filepath "c:\data\sccm\smssetup\bin\x64\extadsch.exe" -wait}
             write-logentry -message "AD Schema has been exteded for SCCM on $domainfqdn"
             write-logentry -message "SCCM installation process has started on $cmname this will take some time so grab a coffee" -type information
-            Invoke-Command -Session $cmsession -ScriptBlock {Start-Process -FilePath "C:\DATA\SCCM\SMSSETUP\bin\x64\setup.exe" -ArgumentList "/script c:\CMinstall.ini"}
-            while ((invoke-command -Session $cmsession -ScriptBlock {get-content C:\ConfigMgrSetup.log | Select-Object -last 1 | Where-Object {$_ -like 'ERROR: Failed to ExecuteConfigureServiceBrokerSp*'}}).count -eq 0) {
-                start-sleep -seconds 15
-            }
-            Start-Sleep -Seconds 30
-            while ((invoke-command -Session $cmsession -ScriptBlock {get-content C:\ConfigMgrSetup.log | Select-Object -last 1 | Where-Object {$_ -like 'ERROR: Failed to ExecuteConfigureServiceBrokerSp*'}}).count -eq 0) {
-                start-sleep -seconds 15
-            }
-            ## better handle the SCCM Console Install
-            ## can't run the below commands until the SCCM Console is installed, need to put a pester check in.
-            ## Computer in group not working.
-            Invoke-Command -Session $cmsession -ScriptBlock {Get-Process setupwpf | Stop-Process -Force}
+            Invoke-Command -Session $cmsession -ScriptBlock {Start-Process -FilePath "C:\DATA\SCCM\SMSSETUP\bin\x64\setup.exe" -ArgumentList "/script c:\CMinstall.ini" -wait}
             write-logentry -message "SCCM has been installed on $cmname" -type information
-            Invoke-Command -Session $cmsession -ScriptBlock {start-process C:\data\SCCM\SMSSETUP\BIN\I386\ConsoleSetup.exe -ArgumentList '/q TargetDir="C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole" DefaultSiteServerName=localhost' -Wait}
-            Write-LogEntry -Message "SCCM Console has been installed on $cmname" -Type Information
             invoke-command -session $cmsession -scriptblock {
                 param($ipsub, $sitecode, $Subnetname, $DomainDN)
-                import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; 
+                    import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; 
+                    if($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}
                     Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"; 
                     New-CMBoundary -Type IPSubnet -Value "$($ipsub).0/24" -name $Subnetname;
                     New-CMBoundaryGroup -name $Subnetname -DefaultSiteCode "$((Get-PSDrive -PSProvider CMSite).name)";
@@ -846,9 +849,9 @@ Write-LogEntry -Type Information -Message "Windows 2016 unattend file is: $unatt
 #endregion 
 
 #region create VMs
-new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname -dftpwd $admpwd
-new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub -vmSnapshotenabled:$vmsnapshot
-new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser -vmSnapshotenabled:$vmsnapshot
+#new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname -dftpwd $admpwd
+#new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub -vmSnapshotenabled:$vmsnapshot
+#new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser -vmSnapshotenabled:$vmsnapshot
 new-SCCMServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -cmsitecode $cmsitecode -SCCMDLPreDown $SCCMDLPreDown -vmSnapshotenabled:$vmsnapshot
-new-CAServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -vmSnapshotenabled:$vmsnapshot
+#new-CAServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -vmSnapshotenabled:$vmsnapshot
 #endregion

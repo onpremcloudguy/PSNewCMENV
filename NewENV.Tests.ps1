@@ -50,6 +50,7 @@ Describe "DC" -Tag ("Domain", "VM") {
         $TDCTestInternet = (Invoke-Command -Session $TDCSession -ScriptBlock {test-netconnection "steven.hosking.com.au" -CommonTCPPort HTTP -WarningAction SilentlyContinue}).TcpTestSucceeded
         $TDCPromoted = (Invoke-Command -Session $TDCSession -ScriptBlock {Get-Service -Name "NTDS" -ErrorAction SilentlyContinue}).status
         $TDCDHCPScopeexists = (Invoke-Command -Session $TDCSession -ScriptBlock {Get-DhcpServerv4Scope})
+        $TDCSCCMGroupExists = (Invoke-Command -Session $TDCSession -ScriptBlock {get-adgroup -Filter "name -eq 'SCCM Servers'" -ErrorAction SilentlyContinue -WarningAction SilentlyContinue})
         $TDCSession | Remove-PSSession
     }
     it 'DC VHDX Should Exist' {$TDCVHDXExists | should be $true}
@@ -59,7 +60,8 @@ Describe "DC" -Tag ("Domain", "VM") {
     it 'DC has access to Internet' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCTestInternet | should be $true}
     it 'DC Domain Services Installed' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCFeat | should be "Installed"}
     it 'DC Promoted' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCPromoted | should be "Running"}
-    it "DC DHCP Scope Active" -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCDHCPScopeexists[0].State | should be "Active"}
+    it 'DC DHCP Scope Active' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCDHCPScopeexists[0].State | should be "Active"}
+    it 'DC SCCM Servers Group' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCSCCMGroupExists[0].name | should be "SCCM Servers"}
 }
 
 Describe "CM" -tag ("ConfigMgr","VM") {
@@ -75,10 +77,15 @@ Describe "CM" -tag ("ConfigMgr","VM") {
         $TCMFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name BITS, BITS-IIS-Ext, BITS-Compact-Server, Web-Server, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-App-Dev, Web-Net-Ext, Web-Net-Ext45, Web-ASP, Web-Asp-Net, Web-Asp-Net45, Web-CGI, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Health, Web-Http-Logging, Web-Custom-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Performance, Web-Stat-Compression, Web-Security, Web-Filtering, Web-Basic-Auth, Web-IP-Security, Web-Url-Auth, Web-Windows-Auth, Web-Mgmt-Tools, Web-Mgmt-Console, Web-Mgmt-Compat, Web-Metabase, Web-Lgcy-Mgmt-Console, Web-Lgcy-Scripting, Web-WMI, Web-Scripting-Tools, Web-Mgmt-Service, RDC) | Where-Object {$_.installstate -eq "Installed"}}).count
         $TCMNetFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name NET-Framework-Features, NET-Framework-Core) | Where-Object {$_.installstate -eq "Installed"}}).count
         $TCMSQLInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "MSSQLSERVER" -ErrorAction SilentlyContinue}).name.count
-        $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit"})
-        $TCMSCCMServerinGRP = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-ADGroupMember "SCCM Servers" | Where-Object {$_.name -eq $env:computername}}).name.count
+        $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit" -ErrorAction SilentlyContinue})
+        $TCMSCCMServerinGRP = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-ADGroupMember "SCCM Servers" | Where-Object {$_.name -eq $env:computername}} -ErrorAction SilentlyContinue).name.count
         $TCMSCCMInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "SMS_EXECUTIVE" -ErrorAction SilentlyContinue}).name.count
         $TCMSCCMConsoleInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe"})
+        if($TCMSCCMConsoleInstalled){
+            Invoke-Command -Session $TCMSession -ScriptBlock {param ($sitecode) import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1";if($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}; Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"} -ArgumentList $cmsitecode
+            $TCMBoundary = (Invoke-Command -Session $TCMSession -ScriptBlock {param($subname) Get-CMBoundary -name $subname} -ArgumentList $swname).displayname.count
+            $TCMDiscovery = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-CMDiscoveryMethod -Name ActiveDirectorySystemDiscovery}).flag
+        }
         $TCMSession | Remove-PSSession
     }
     it 'CM VHDX Should Exist' {$TCMVHDXExists | should be $true}
@@ -94,6 +101,8 @@ Describe "CM" -tag ("ConfigMgr","VM") {
     it 'CM Server in Group' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMServerinGRP | should be 1}
     it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
     it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
+    it 'CM Site Boundary added' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMBoundary | should be 1}
+    it 'CM System Discovery enabled' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMDiscovery | should be 6}
     ########
     #TODO: Add in tests for SCCM Boundaries, Discovery
     ########
