@@ -1,0 +1,65 @@
+{
+    "ServerTemplates" : [
+        {
+            "NameSuffix" : "CM",
+            "Cores" : 4,
+            "RAM" : 12,
+            "IPSuffix" : 11,
+            "ServerType" : "PRI",
+            "SQLMax" : 8,
+            "SQLMin" : 4,
+            "CAS" : 0,
+            "PRI" : 1
+        },
+        {
+            "NameSuffix" : "CMCAS",
+            "Cores" : 4,
+            "RAM" : 12,
+            "IPSuffix" : 11,
+            "ServerType" : "CAS",
+            "SQLMax" : 8,
+            "SQLMin" : 4,
+            "CAS" : 1,
+            "PRI" : 0
+        },
+        {
+            "NameSuffix" : "CMCP",
+            "Cores" : 4,
+            "RAM" : 12,
+            "IPSuffix" : 13,
+            "ServerType" : "CPRI",
+            "SQLMax" : 8,
+            "SQLMin" : 4,
+            "CAS" : 1,
+            "PRI" : 1
+        },
+        {
+            "NameSuffix" : "DC",
+            "Cores" : 1,
+            "RAM" : 4,
+            "IPSuffix" : 10,
+            "ServerType" : "DC"
+        },
+        {
+            "NameSuffix" : "CA",
+            "Cores" : 1,
+            "RAM" : 4,
+            "IPSuffix" : 12,
+            "ServerType" : "CA"
+        },
+        {
+            "NameSuffix" : "RRAS",
+            "Cores" : 1,
+            "RAM" : 4,
+            "IPSuffix" : 10,
+            "ServerType" : "RRAS"
+        },
+        {
+            "NameSuffix" : "WKS",
+            "Cores" : 1,
+            "RAM" : 4,
+            "ServerType" : "WKS",
+            "IPSuffix" : 0
+        }
+    ]
+}
