@@ -10,7 +10,7 @@ function Set-LabSettings {
     
 #endregion
 #LAZY MODULE TESTING, WILL BE FIXED ONCE COMPLETED
-foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object {$_.name -notin ("newenv.ps1", "NewENV.Tests.ps1")}) {
+foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object {$_.name -notin ("NewENV.Tests.ps1", "labtest.ps1")}) {
     . ".\$psfile"
 }
     
@@ -51,11 +51,80 @@ Write-LogEntry -Type Information -Message "Windows 2016 unattend file is: $unatt
 $servertemplates = (Get-Content "$scriptpath\SVRTemplates.json" -Raw | ConvertFrom-Json).ServerTemplates
 #endregion 
     
-    
+#region ENVConfig
+$envconfig = [env]::new()
+$envconfig.vmpath = $vmpath
+$envConfig.RefVHDX = $RefVHDX
+$envConfig.Win16ISOPath = $config.WIN16ISO
+$envConfig.Win16Net35Cab = $config.WINNET35CAB
+$envConfig.network = $swname
+$envconfig.DefaultPwd = $admpwd
+$envConfig.Save("$vmpath`\envconfig.json")
+#endregion
+
+#region RRASConfig
+$RRASConfig = [RRAS]::new()
+$RRASConfig.name = $RRASname
+$RRASConfig.cores = 1
+$RRASConfig.ram = 4
+$RRASConfig.ipaddress = "$ipsub`1"
+$RRASConfig.network = $swname
+$RRASConfig.localadmin = $localadmin
+$RRASConfig.vmSnapshotenabled = $false
+$RRASConfig.VHDXpath = "$(split-path $vmpath)\RRASc.vhdx"
+$RRASConfig.RefVHDX = $RefVHDX
+$RRASConfig.Save("$(split-path $vmpath)\RRASConfig.json")
+#endregion
+
+#region DCConfig
+$DCConfig = [DC]::new()
+$DCConfig.Name = "$($config.env)`DC"
+$DCConfig.cores = 1
+$DCConfig.Ram = 4
+$DCConfig.IPAddress = "$ipsub`10"
+$DCConfig.network = $swname
+$DCConfig.VHDXpath = "$vmpath\$($config.env)`DCc.vhdx"
+$DCConfig.localadmin = $localadmin
+$DCConfig.domainFQDN = $domainfqdn
+$DCConfig.AdmPwd = $admpwd
+$DCConfig.domainuser = $domuser
+$DCConfig.VMSnapshotenabled = $false
+$DCConfig.refvhdx = $RefVHDX
+$DCConfig.Save("$vmpath\dcconfig.json")
+#endregion
+
+#region CMConfig
+$CMConfig = [CM]::new()
+$CMConfig.name = "$($config.env)`CM"
+$CMConfig.cores = 4
+$CMConfig.ram = 12
+$CMConfig.IPAddress = "$ipsub`11"
+$CMConfig.network = $swname
+$CMConfig.VHDXpath = "$vmpath\$($config.env)`CMc.vhdx"
+$CMConfig.localadmin = $localadmin
+$CMConfig.domainuser = $domuser
+$CMConfig.AdmPwd = $admpwd
+$CMConfig.domainFQDN = $domainfqdn
+$CMConfig.VMSnapshotenabled = $false
+$CMConfig.cmsitecode = $cmsitecode
+$CMConfig.SCCMDLPreDownloaded = $sccmdlpredown
+$CMConfig.DCIP = $DCConfig.IPAddress
+$CMConfig.RefVHDX = $RefVHDX
+$CMConfig.SQLISO = $config.SQLISO
+$CMConfig.SCCMPath = $config.SCCMPath
+$CMConfig.ADKPath = $config.ADKPATH
+$CMConfig.domainnetbios = $domainnetbios
+$CMConfig.save("$vmpath\cmconfig.json")
+#endregion
+
 #region create VMs
-new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname -dftpwd $admpwd
-new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub -vmSnapshotenabled:$vmsnapshot
-new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser -vmSnapshotenabled:$vmsnapshot
-new-SCCMServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -cmsitecode $cmsitecode -SCCMDLPreDown $SCCMDLPreDown -vmSnapshotenabled:$vmsnapshot
-new-CAServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -vmSnapshotenabled:$vmsnapshot
+new-env -ENVConfig $envconfig
+new-RRASServer -RRASConfig $RRASConfig
+#new-DC -DCConfig $DCConfig
+new-SCCMServer -CMConfig $CMConfig
+#new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname -dftpwd $admpwd
+#new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub -vmSnapshotenabled:$vmsnapshot
+#new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser -vmSnapshotenabled:$vmsnapshot
+#new-SCCMServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -cmsitecode $cmsitecode -SCCMDLPreDown $SCCMDLPreDown -vmSnapshotenabled:$vmsnapshot
+#new-CAServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -vmSnapshotenabled:$vmsnapshot
 #endregion

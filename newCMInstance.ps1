@@ -35,7 +35,7 @@ function new-CMInstance{
             import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; 
             if($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}
             Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"; 
-            New-CMBoundary -Type IPSubnet -Value "$($ipsub).0/24" -name $Subnetname;
+            New-CMBoundary -Type IPSubnet -Value "$($ipsub)/24" -name $Subnetname;
             New-CMBoundaryGroup -name $Subnetname -DefaultSiteCode "$((Get-PSDrive -PSProvider CMSite).name)";
             Add-CMBoundaryToGroup -BoundaryName $Subnetname -BoundaryGroupName $Subnetname;
             $Schedule = New-CMSchedule -RecurInterval Minutes -Start "2012/10/20 00:00:00" -End "2013/10/20 00:00:00" -RecurCount 10;

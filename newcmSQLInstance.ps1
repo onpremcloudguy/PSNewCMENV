@@ -2,14 +2,14 @@ function New-CMSQLInstance {
     param(
         $cmname,
         $cmsession,
-        $config,
+        $SQLISO,
         $domainnetbios,
         $admpwd
     )
     Add-VMDvdDrive -VMName $cmname -ControllerNumber 0 -ControllerLocation 1
-    Set-VMDvdDrive -Path $config.SQLISO -VMName $cmname -ControllerNumber 0 -ControllerLocation 1
+    Set-VMDvdDrive -Path $SQLISO -VMName $cmname -ControllerNumber 0 -ControllerLocation 1
     $sqldisk = Invoke-Command -session $cmsession -ScriptBlock {(Get-PSDrive -PSProvider FileSystem | where-object {$_.name -ne "c"}).root}
-    write-logentry -message "$($config.sqliso) mounted as $sqldisk to $cmname" -type information
+    write-logentry -message "$SQLISO mounted as $sqldisk to $cmname" -type information
     $sqlinstallini = new-CMSQLsettingsINI -domainnetbios $domainnetbios -admpwd $admpwd
     write-logentry -message "SQL Configuration for $cmname is: $sqlinstallini" -type information
     Invoke-Command -Session $cmsession -ScriptBlock {param($ini) new-item -ItemType file -Path c:\ConfigurationFile.INI -Value $INI -Force} -ArgumentList $SQLInstallINI | out-null

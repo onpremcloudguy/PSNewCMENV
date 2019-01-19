@@ -1,40 +1,52 @@
 function new-ENV {
     param(
-        [Parameter(Mandatory)]
-        [pscredential]
-        $domuser,
-        [Parameter(Mandatory)]
+        [Parameter(ParameterSetName='ENVClass')]
+        [env]
+        $ENVConfig,
+        [Parameter(ParameterSetName='NoClass')]
         [string]
         $vmpath,
-        [Parameter(Mandatory)]
+        [Parameter(ParameterSetName='NoClass')]
         [string]
         $RefVHDX,
-        [Parameter(Mandatory)]
-        [psobject]
-        $config,
-        [Parameter(Mandatory)]
+        [Parameter(ParameterSetName='NoClass')]
         [string]
-        $swname,
-        [Parameter(Mandatory)]
+        $Win16ISOPath,
+        [Parameter(ParameterSetName='NoClass')]
         [string]
-        $dftpwd
+        $Win16Net35Cab,
+        [Parameter(ParameterSetName='NoClass')]
+        [string]
+        $network,
+        [Parameter(ParameterSetName='NoClass')]
+        [string]
+        $DefaultPwd
     )
-    if ($domuser -eq $null) {throw "Issue with the Dom User"}
+    if(!$PSBoundParameters.ContainsKey('ENVConfig'))
+    {
+        $ENVConfig = [env]::new()
+        $ENVConfig.vmpath = $vmpath
+        $ENVConfig.RefVHDX = $RefVHDX
+        $ENVConfig.Win16ISOPath = $Win16ISOPath
+        $ENVConfig.Win16Net35Cab = $Win16Net35Cab
+        $ENVConfig.network = $network
+        $ENVConfig.DefaultPwd = $DefaultPwd
+    }
     Write-LogEntry -Type Information -Message "Creating the base requirements for Lab Environment"
     $TREFVHDX = Invoke-Pester -TestName "Reference-VHDX" -PassThru -Show Passed
     if ($TREFVHDX.PassedCount -eq 1) {
-        Write-LogEntry -Type Information -Message "Reference image already exists in: $refvhdx"
+        Write-LogEntry -Type Information -Message "Reference image already exists in: $($ENVConfig.RefVHDX)"
     }
     else {
-        if (!(Test-Path $vmpath)) {New-Item -ItemType Directory -Force -Path $vmpath}
+        if (!(Test-Path $ENVConfig.vmpath)) {New-Item -ItemType Directory -Force -Path $ENVConfig.vmpath}
         else {
             if(!(Test-Path "$($scriptpath)\unattended.xml"))
             {
-                New-UnattendXml -admpwd $dftpwd -outfile "$($scriptpath)\unattended.xml"
+                New-UnattendXml -admpwd $ENVConfig.DefaultPwd -outfile "$($scriptpath)\unattended.xml"
             }
             Write-LogEntry -Type Information -Message "Reference image doesn't exist, will create it now"
-            new-LabVHDX -VHDXPath $RefVHDX -Unattend "$($scriptpath)\unattended.xml" -WinISO $config.WIN16ISO -WinNet35Cab $config.WINNET35CAB
-            Write-LogEntry -Type Information -Message "Reference image has been created in: $refvhdx"
+            new-LabVHDX -VHDXPath $ENVConfig.RefVHDX -Unattend "$($scriptpath)\unattended.xml" -WinISO $ENVConfig.Win16ISOPath -WinNet35Cab $ENVConfig.Win16Net35Cab
+            Write-LogEntry -Type Information -Message "Reference image has been created in: $($ENVConfig.RefVHDX)"
         }
     }
     $TNetwork = Invoke-Pester -TestName "vSwitch" -PassThru -Show None
@@ -62,9 +74,9 @@ function new-ENV {
         }
     }
     if (($TNetwork.TestResult | Where-Object {$_.name -eq 'Lab VMSwitch Should exist'}).result -eq 'Failed') {
-        Write-LogEntry -Type Information -Message "Private vSwitch named $swname does not exist"
-        New-VMSwitch -Name $swname -SwitchType Private | Out-Null
-        Write-LogEntry -Type Information -Message "Private vSwitch named $swname has been created."
+        Write-LogEntry -Type Information -Message "Private vSwitch named $($ENVConfig.network) does not exist"
+        New-VMSwitch -Name $ENVConfig.network -SwitchType Private | Out-Null
+        Write-LogEntry -Type Information -Message "Private vSwitch named $($ENVConfig.network) has been created."
     }
     Write-LogEntry -Type Information -Message "Base requirements for Lab Environment has been met"
 }
