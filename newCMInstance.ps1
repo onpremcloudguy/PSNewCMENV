@@ -32,14 +32,17 @@ function new-CMInstance{
     write-logentry -message "SCCM has been installed on $cmname" -type information
     invoke-command -session $cmsession -scriptblock {
         param($ipsub, $sitecode, $Subnetname, $DomainDN)
-            import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; 
-            if($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}
+            while (!(Test-Path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\ConfigurationManager.psd1" -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)) {
+                start-sleep -Seconds 20
+            }
+            import-module "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\ConfigurationManager.psd1"; 
+            if($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME | Out-Null}
             Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"; 
-            New-CMBoundary -Type IPSubnet -Value "$($ipsub)/24" -name $Subnetname;
-            New-CMBoundaryGroup -name $Subnetname -DefaultSiteCode "$((Get-PSDrive -PSProvider CMSite).name)";
+            New-CMBoundary -Type IPSubnet -Value "$($ipsub)0/24" -name $Subnetname | Out-Null;
+            New-CMBoundaryGroup -name $Subnetname -DefaultSiteCode "$((Get-PSDrive -PSProvider CMSite).name)" | Out-Null;
             Add-CMBoundaryToGroup -BoundaryName $Subnetname -BoundaryGroupName $Subnetname;
             $Schedule = New-CMSchedule -RecurInterval Minutes -Start "2012/10/20 00:00:00" -End "2013/10/20 00:00:00" -RecurCount 10;
-            Set-CMDiscoveryMethod -ActiveDirectorySystemDiscovery -SiteCode $sitecode -Enabled $True -EnableDeltaDiscovery $True -PollingSchedule $Schedule -AddActiveDirectoryContainer "LDAP://$domaindn" -Recursive;
+            Set-CMDiscoveryMethod -ActiveDirectorySystemDiscovery -SiteCode $sitecode -Enabled $True -EnableDeltaDiscovery $True -PollingSchedule $Schedule -AddActiveDirectoryContainer "LDAP://$domaindn" -Recursive -ErrorAction SilentlyContinue;
             Get-CMDevice | Where-Object {$_.ADSiteName -eq "Default-First-Site-Name"} | Install-CMClient -IncludeDomainController $true -AlwaysInstallClient $true -SiteCode $sitecode;
         } -ArgumentList $ipsub, $cmsitecode, $domainnetbios, ("dc=" + ($DomainFQDN.Split('.') -join ",dc="))
     }

@@ -5,10 +5,7 @@ function new-DC {
         $DCConfig,
         [Parameter(ParameterSetName='NoClass')]
         [string]
-        $VHDXpath, # needs to be full path now
-        [Parameter(ParameterSetName='NoClass')]
-        [psobject]
-        $envconfig, # refactor to remove this and pass just the servername
+        $VHDXpath,
         [Parameter(ParameterSetName='NoClass')]
         [pscredential]
         $localadmin,
@@ -17,7 +14,7 @@ function new-DC {
         $Network,
         [Parameter(ParameterSetName='NoClass')]
         [string]
-        $ipAddress, #Need to refactor IP address to be passed to function, Split and remove last octet to set gateway and DNS where required
+        $ipAddress,
         [Parameter(ParameterSetName='NoClass')]
         [string]
         $DomainFQDN,
@@ -61,11 +58,11 @@ function new-DC {
     }
     $ipsubnet = $dcconfig.IPAddress.substring(0,($dcconfig.IPAddress.length - ([ipaddress] $dcconfig.IPAddress).GetAddressBytes()[3].count - 1))
     Write-LogEntry -Message "DC Server Started: $(Get-Date)" -Type Information
-
+    Write-LogEntry -Message "DC Settings are: $($DCConfig | ConvertTo-Json)" -Type Information
     Write-LogEntry -Message "VM for DC will be named: $($dcconfig.name)" -type Information
     Write-LogEntry -Message "Path for the VHDX for $($dcconfig.name) is: $($dcconfig.VHDXpath)" -type information
     if (!((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object {$_.name -match "DC Should Exist"}).result -notmatch "Passed") {
-        write-logentry -message "DC for env: $($envconfig.env) doesn't exist, creating now" -Type Information
+        write-logentry -message "DC for env: $($DCConfig.Network) doesn't exist, creating now" -Type Information
         if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object {$_.name -match "DC VHDX Should Exist"}).Result -match "Passed") {
             Write-LogEntry -Message "DC VHDX Already Exists at path: $($dcconfig.VHDXpath) Please clean up and Rerun." -Type Error
             throw "DC VHDX Already Exists at path: $($dcconfig.VHDXpath) Please clean up and Rerun."
@@ -112,11 +109,15 @@ function new-DC {
         }
         $dcsession | Remove-PSSession
         Write-LogEntry -Type Information -Message "PowerShell Direct Session for $($dcconfig.name) has been disconnected"
-        while ((Invoke-Command -VMName $dcconfig.name -Credential $dcconfig.domainuser {(get-command get-adgroup).count} -ErrorAction SilentlyContinue) -ne 1) {Start-Sleep -Seconds 5}
+        start-sleep -Seconds 360
+        while (!(Invoke-Command -VMName $dcconfig.name -Credential $dcconfig.domainuser {test-netconnection $env:computername -port 9389}).TcpTestSucceeded) {
+            (Invoke-Command -VMName $dcconfig.name -Credential $dcconfig.domainuser {Get-WmiObject -Class Win32_Service -Filter 'name="adws"'}).state
+            Start-Sleep -Seconds 5
+        }
         while (((invoke-pester -testname "DC" -passthru -show none).testresult | where-object {$_.name -match "DC SCCM Servers Group"}).result -notmatch "Passed") {
             $dcsessiondom = New-PSSession -VMName $dcconfig.name -Credential $dcconfig.domainuser -ErrorAction SilentlyContinue
             #Write-LogEntry -Message "PowerShell Direct session for $($dcconfig.domainuser.UserName) has been initated with DC Service named: $($dcconfig.name)" -Type Information
-            Invoke-Command -Session $dcsessiondom -ScriptBlock {Import-Module ActiveDirectory; New-ADGroup -Name "SCCM Servers" -GroupScope 1 -ErrorAction SilentlyContinue -WarningAction SilentlyContinue}
+            $null = Invoke-Command -Session $dcsessiondom -ScriptBlock {Import-Module ActiveDirectory -ErrorAction SilentlyContinue -WarningAction SilentlyContinue; New-ADGroup -Name "SCCM Servers" -GroupScope 1 -ErrorAction SilentlyContinue -WarningAction SilentlyContinue}
         }
         Invoke-Command -Session $dcsessiondom -ScriptBlock {$root = (Get-ADRootDSE).defaultNamingContext; if (!([adsi]::Exists("LDAP://CN=System Management,CN=System,$root"))) {$null= New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru}; $acl = get-acl "ad:CN=System Management,CN=System,$root"; $objGroup = Get-ADGroup -filter {Name -eq "SCCM Servers"}; $All = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::SelfAndChildren; $ace = new-object System.DirectoryServices.ActiveDirectoryAccessRule $objGroup.SID, "GenericAll", "Allow", $All; $acl.AddAccessRule($ace); Set-acl -aclobject $acl "ad:CN=System Management,CN=System,$root"}
         Write-LogEntry -Message "System Management Container created in $($dcconfig.DomainFQDN) forrest on $($dcconfig.name)" -type Information

@@ -6,18 +6,18 @@ $localadmin = new-object -typename System.Management.Automation.PSCredential -ar
 $domuser = new-object -typename System.Management.Automation.PSCredential -argumentlist "$($envconfig.env)\administrator", (ConvertTo-SecureString -String $admpwd -AsPlainText -Force)
 $vmpath = $envConfig.VMPath
 $swname = $envConfig.SwitchName
-$ipsub = $envConfig.ipsubnet
+#$ipsub = $envConfig.ipsubnet
 $DomainFQDN = $envconfig.DomainFQDN
-$RRASname = $Config.RRASname
+#$RRASname = $Config.RRASname
 $RefVHDX = $config.REFVHDX
-$dcname = "$($envconfig.env)`DC"
+#$dcname = "$($envconfig.env)`DC"
 #if ($Config.SCCMCAS -eq "1") {
 #    $cmconfig.name = "$($envconfig.ENV)`CMCAS"
 #}
 #else {
 #    $cmconfig.name = "$($envconfig.env)`CM"
 #}
-$CAname = "$($envconfig.env)`CA"
+
 . .\Lab.Classes.ps1
 Describe "RRAS" -Tag ("Network", "RRAS", "VM") {
     $RRASConfig = [RRAS]::new()
@@ -32,7 +32,7 @@ Describe "RRAS" -Tag ("Network", "RRAS", "VM") {
         $rrasLABrename = (Invoke-Command -Session $trrasSession -ScriptBlock {param($n)Get-NetAdapter -Physical -Name $n -ErrorAction SilentlyContinue} -ArgumentList $RRASConfig.network).name
         $rrasVPNStatus = (Invoke-Command -Session $trrasSession -ScriptBlock {if ((get-command Get-RemoteAccess -ErrorAction SilentlyContinue).count -eq 1) {Get-RemoteAccess -ErrorAction SilentlyContinue}})
         $rrasLabIPAddress = (Invoke-Command -Session $trrasSession -ScriptBlock {param($n)(Get-NetIPAddress -interfacealias $n -AddressFamily IPv4 -ErrorAction SilentlyContinue).ipaddress} -ArgumentList $RRASConfig.network)
-        $tRRASInternet = (Invoke-Command -Session $trrasSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue}).PingSucceeded
+        $tRRASInternet = (Invoke-Command -Session $trrasSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).PingSucceeded
         $trrasSession | Remove-PSSession
     }
     it 'RRAS VHDX Should exist' {$tRRASVHDXExists | should be $true}
@@ -57,10 +57,12 @@ Describe "DC" -Tag ("Domain", "VM") {
         if (!($TDCSession)) {$TDCSession = new-PSSession -VMName $dcconfig.Name -Credential $domuser; $TDCPromoted = $true} else {$TDCPromoted = $false}
         $TDCIPAddress = (Invoke-Command -Session $TDCSession -ScriptBlock {(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress})
         $TDCFeat = (Invoke-Command -Session $TDCSession -ScriptBlock {(get-windowsfeature -name AD-Domain-Services).installstate}).value
-        $TDCTestInternet = (Invoke-Command -Session $TDCSession -ScriptBlock {test-netconnection "steven.hosking.com.au" -CommonTCPPort HTTP -WarningAction SilentlyContinue}).TcpTestSucceeded
+        $TDCTestInternet = (Invoke-Command -Session $TDCSession -ScriptBlock {test-netconnection "steven.hosking.com.au" -CommonTCPPort HTTP -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).TcpTestSucceeded
         $TDCPromoted = (Invoke-Command -Session $TDCSession -ScriptBlock {Get-Service -Name "NTDS" -ErrorAction SilentlyContinue}).status
-        $TDCDHCPScopeexists = (Invoke-Command -Session $TDCSession -ScriptBlock {if(get-command Get-DhcpServerv4Scope){Get-DhcpServerv4Scope -ErrorAction SilentlyContinue}})
-        $TDCSCCMGroupExists = (Invoke-Command -Session $TDCSession -ScriptBlock {if(get-command get-adgroup){get-adgroup -Filter "name -eq 'SCCM Servers'" -ErrorAction SilentlyContinue -WarningAction SilentlyContinue}})
+        $TDCDHCPScopeexists = (Invoke-Command -Session $TDCSession -ScriptBlock {if(get-command Get-DhcpServerv4Scope -ErrorAction SilentlyContinue){Get-DhcpServerv4Scope -ErrorAction SilentlyContinue -warningaction SilentlyContinue}})
+        $TDCADWSState = (Invoke-Command -session $TDCSession {Get-WmiObject -class Win32_Service -filter 'name="adws"'}).state
+        if($TDCADWSState -eq "Running")
+        {$TDCSCCMGroupExists = (Invoke-Command -Session $TDCSession -ScriptBlock {if(get-command get-adgroup -ErrorAction SilentlyContinue -WarningAction SilentlyContinue){get-adgroup -Filter "name -eq 'SCCM Servers'" -ErrorAction SilentlyContinue -WarningAction SilentlyContinue}})}
         $TDCSession | Remove-PSSession
     }
     it 'DC VHDX Should Exist' {$TDCVHDXExists | should be $true}
@@ -85,7 +87,7 @@ Describe "CM" -tag ("ConfigMgr", "VM") {
         $TCMSession = new-PSSession -VMName $cmconfig.name -Credential $localadmin -ErrorAction SilentlyContinue
         if (!($TCMSession)) {$TCMSession = new-PSSession -VMName $cmconfig.name -Credential $domuser}
         $TCMIPAddress = (Invoke-Command -Session $TCMSession -ScriptBlock {(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress})
-        $TCMTestInternet = (Invoke-Command -Session $TCMSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue}).PingSucceeded
+        $TCMTestInternet = (Invoke-Command -Session $TCMSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).PingSucceeded
         $TCMTestDomain = (Invoke-Command -Session $TCMSession -ScriptBlock {param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue} -ArgumentList $CMConfig.domainFQDN ).PingSucceeded
         $TCMFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name BITS, BITS-IIS-Ext, BITS-Compact-Server, Web-Server, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-App-Dev, Web-Net-Ext, Web-Net-Ext45, Web-ASP, Web-Asp-Net, Web-Asp-Net45, Web-CGI, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Health, Web-Http-Logging, Web-Custom-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Performance, Web-Stat-Compression, Web-Security, Web-Filtering, Web-Basic-Auth, Web-IP-Security, Web-Url-Auth, Web-Windows-Auth, Web-Mgmt-Tools, Web-Mgmt-Console, Web-Mgmt-Compat, Web-Metabase, Web-Lgcy-Mgmt-Console, Web-Lgcy-Scripting, Web-WMI, Web-Scripting-Tools, Web-Mgmt-Service, RDC) | Where-Object {$_.installstate -eq "Installed"}}).count
         $TCMNetFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name NET-Framework-Features, NET-Framework-Core) | Where-Object {$_.installstate -eq "Installed"}}).count
@@ -122,22 +124,24 @@ Describe "CM" -tag ("ConfigMgr", "VM") {
 }
 
 Describe "CA" -tag ("CA", "VM") {
-    $TCAVHDXExists = (Test-Path -path "$vmpath\$($CAname)c.vhdx")
-    $TCAExists = (get-vm -name $CAname -ErrorAction SilentlyContinue).count
-    $TCARunning = (get-vm -name $CAname -ErrorAction SilentlyContinue | Where-Object {$_.State -match "Running"}).count
+    $CAConfig = [CA]::new()
+    $CAConfig.load("$VMpath\CAconfig.json")
+    $TCAVHDXExists = (Test-Path -path $CAConfig.VHDXpath)
+    $TCAExists = (get-vm -name $CAConfig.Name -ErrorAction SilentlyContinue).count
+    $TCARunning = (get-vm -name $CAConfig.Name -ErrorAction SilentlyContinue | Where-Object {$_.State -match "Running"}).count
     if ($TCAExists -eq 1 -and $TCARunning -eq 1) {
-        $TCASession = new-PSSession -VMName $CAname -Credential $localadmin -ErrorAction SilentlyContinue
-        if (!($TCASession)) {$TCASession = new-PSSession -VMName $CAname -Credential $domuser}
+        $TCASession = new-PSSession -VMName $CAConfig.Name -Credential $localadmin -ErrorAction SilentlyContinue
+        if (!($TCASession)) {$TCASession = new-PSSession -VMName $CAConfig.Name -Credential $domuser}
         $TCAIPAddress = (Invoke-Command -Session $TCASession -ScriptBlock {(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress})
-        $TCATestInternet = (Invoke-Command -Session $TCASession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue}).PingSucceeded
-        $TCATestDomain = (Invoke-Command -Session $TCASession -ScriptBlock {param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue} -ArgumentList $DomainFQDN ).PingSucceeded
+        $TCATestInternet = (Invoke-Command -Session $TCASession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).PingSucceeded
+        $TCATestDomain = (Invoke-Command -Session $TCASession -ScriptBlock {param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue} -ArgumentList $CAConfig.domainFQDN ).PingSucceeded
         $TCAFeat = (Invoke-Command -Session $TCASession -ScriptBlock {(get-windowsfeature -name Adcs-Cert-Authority | Where-Object {$_.installstate -eq "Installed"}).count})
         $TCASession | Remove-PSSession
     }
     it 'CA VHDX Should Exist' {$TCAVHDXExists | should be $true}
     it 'CA Should Exist' {$TCAExists | should be 1}
     it 'CA Should be running' {$TCARunning | should be 1}
-    it 'CA IP Address' -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCAIPAddress | should be "$ipsub`12"}
+    it 'CA IP Address' -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCAIPAddress | should be $CAConfig.IPAddress}
     it 'CA has access to Internet' -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCATestInternet | should be $true}
     it "CA has access to $DomainFQDN" -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCATestDomain | Should be $true}
     it 'CA Feature is installed' -Skip:(!($TCAExists -eq 1 -and $TCARunning -eq 1)) {$TCAFeat | should be 1}

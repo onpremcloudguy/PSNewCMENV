@@ -26,7 +26,7 @@ function New-CMSQLInstance {
         }
     }
     Set-VMDvdDrive -VMName $cmname -Path $null
-    Invoke-Command -session $cmsession -ScriptBlock {Add-WindowsFeature UpdateServices-Services, UpdateServices-db} | Out-Null
+    Invoke-Command -session $cmsession -ScriptBlock {Add-WindowsFeature UpdateServices-Services, UpdateServices-db -warningaction silentlycontinue } | Out-Null
     invoke-command -session $cmsession -scriptblock {start-process -filepath "C:\Program Files\Update Services\Tools\WsusUtil.exe" -ArgumentList "postinstall CONTENT_DIR=C:\WSUS SQL_INSTANCE_NAME=$env:COMPUTERNAME" -Wait}
     invoke-command -session $cmsession -ScriptBlock {start-process -FilePath "C:\windows\system32\msiexec.exe" -ArgumentList "/I c:\data\sccm\dl\sqlncli.msi /QN REBOOT=ReallySuppress"}
     write-logentry -message "SQL ISO dismounted from $cmname" -type information

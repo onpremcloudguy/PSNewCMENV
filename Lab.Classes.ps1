@@ -110,6 +110,36 @@ class env {
         $this | ConvertTo-Json | Out-File $path
     }
 }
+class CA{
+    [string]$Name
+    [int]$cores
+    [int]$ram
+    [string]$IPAddress
+    [string]$network
+    [string]$VHDXpath
+    [pscredential]$localadmin
+    [string]$domainFQDN
+    [pscredential]$domainuser
+    [bool]$VMSnapshotenabled
+    [string]$RefVHDX
+    [string]$DCIP
+    save ([string] $path) {
+        $this | ConvertTo-Json | Out-File $path
+    }
+    load ([string] $path) {
+        $settings = get-content $path | ConvertFrom-Json
+        $this.name = $settings.name
+        $this.cores = $settings.cores
+        $this.Ram = $settings.ram
+        $this.IPAddress = $settings.ipaddress
+        $this.network = $settings.network
+        $this.VHDXpath = $settings.VHDXpath
+        $this.domainFQDN = $settings.domainFQDN
+        $this.VMSnapshotenabled = $settings.vmSnapshotenabled
+        $this.refvhdx = $settings.refvhdx
+        $this.DCIP = $Settings.DCIP
+    }
+}
 class CASP {
 
 }

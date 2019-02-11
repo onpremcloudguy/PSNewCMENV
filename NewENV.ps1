@@ -33,6 +33,7 @@ function new-ENV {
         $ENVConfig.DefaultPwd = $DefaultPwd
     }
     Write-LogEntry -Type Information -Message "Creating the base requirements for Lab Environment"
+    Write-LogEntry -Type Information -Message "ENV Settings are: $($envconfig | ConvertTo-Json)"
     $TREFVHDX = Invoke-Pester -TestName "Reference-VHDX" -PassThru -Show Passed
     if ($TREFVHDX.PassedCount -eq 1) {
         Write-LogEntry -Type Information -Message "Reference image already exists in: $($ENVConfig.RefVHDX)"

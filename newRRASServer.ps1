@@ -44,8 +44,8 @@ function new-RRASServer {
         $RRASConfig.VHDXpath = $VHDXPath
         $RRASConfig.RefVHDX = $RefVHDX
     }
-    $RRASConfig
     Write-LogEntry -Message "RRAS Server started $(Get-Date)" -type Information
+    Write-LogEntry -Message "RRAS Settings are: $($RRASConfig | ConvertTo-Json)" -Type Information
     if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object {$_.name -match "RRAS Server Should exist"}).Result -notmatch "Passed") {
         Write-LogEntry -Type Information -Message "Path for the VHDX for RRAS is: $($RRASConfig.VHDXpath)"
         if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object {$_.name -match "VHDX Should exist"}).Result -match "Passed") {
@@ -53,8 +53,6 @@ function new-RRASServer {
             throw "RRAS VHDX Already Exists at path: $($RRASConfig.VHDXpath) Please clean up and Rerun."
         }
         else {
-            Write-Output $RRASConfig.RefVHDX
-            Write-Output $RRASConfig.VHDXpath
             Copy-Item -Path $RRASConfig.RefVHDX -Destination $RRASConfig.VHDXpath
             Write-LogEntry -Type Information -Message "Reference VHDX: $($RRASConfig.RefVHDX) has been copied to: $($RRASConfig.VHDXpath)"
         }

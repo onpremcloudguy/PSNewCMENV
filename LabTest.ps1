@@ -48,7 +48,7 @@ $vmsnapshot = if ($config.Enablesnapshot -eq 1) {$true}else {$false}
 Write-LogEntry -Type Information -Message "Snapshots have been: $vmsnapshot"
 $unattendpath = $config.REFVHDX -replace ($config.REFVHDX.split('\') | Select-Object -last 1), "Unattended.xml"
 Write-LogEntry -Type Information -Message "Windows 2016 unattend file is: $unattendpath"
-$servertemplates = (Get-Content "$scriptpath\SVRTemplates.json" -Raw | ConvertFrom-Json).ServerTemplates
+#$servertemplates = (Get-Content "$scriptpath\SVRTemplates.json" -Raw | ConvertFrom-Json).ServerTemplates
 #endregion 
     
 #region ENVConfig
@@ -117,14 +117,27 @@ $CMConfig.domainnetbios = $domainnetbios
 $CMConfig.save("$vmpath\cmconfig.json")
 #endregion
 
+#region CAConfig
+$CAConfig = [CA]::new()
+$CAConfig.name = "$($config.env)`CA"
+$CAConfig.cores = 1
+$CAConfig.Ram = 4
+$CAConfig.IPAddress = "$ipsub`20"
+$CAConfig.domainuser = $domuser
+$CAConfig.localadmin = $localadmin
+$CAConfig.network = $swname
+$CAConfig.VHDXpath = "$vmpath\$($config.env)`CAc.vhdx"
+$CAConfig.domainFQDN = $DomainFQDN
+$CAConfig.VMSnapshotenabled = $false
+$CAConfig.refvhdx = $RefVHDX
+$CAConfig.DCIP = $DCConfig.IPAddress
+$CAConfig.save("$vmpath\CAConfig.json")
+#endregion
+
 #region create VMs
 new-env -ENVConfig $envconfig
 new-RRASServer -RRASConfig $RRASConfig
-#new-DC -DCConfig $DCConfig
+new-DC -DCConfig $DCConfig
+New-CAServer -CAConfig $CAConfig
 new-SCCMServer -CMConfig $CMConfig
-#new-ENV -domuser $domuser -vmpath $vmpath -RefVHDX $RefVHDX -config $config -swname $swname -dftpwd $admpwd
-#new-RRASServer -vmpath $vmpath -RRASname $RRASname -RefVHDX $RefVHDX -localadmin $localadmin -swname $swname -ipsub $ipsub -vmSnapshotenabled:$vmsnapshot
-#new-DC -vmpath $vmpath -envconfig $envConfig -localadmin $localadmin -swname $swname -ipsub $ipsub -DomainFQDN $DomainFQDN -admpwd $admpwd -domuser $domuser -vmSnapshotenabled:$vmsnapshot
-#new-SCCMServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -cmsitecode $cmsitecode -SCCMDLPreDown $SCCMDLPreDown -vmSnapshotenabled:$vmsnapshot
-#new-CAServer -envconfig $envConfig -vmpath $vmpath -localadmin $localadmin -ipsub $ipsub -DomainFQDN $DomainFQDN -domuser $domuser -config $config -admpwd $admpwd -domainnetbios $domainnetbios -vmSnapshotenabled:$vmsnapshot
 #endregion

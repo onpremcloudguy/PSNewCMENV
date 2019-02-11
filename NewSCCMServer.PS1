@@ -104,6 +104,7 @@ function new-SCCMServer {
     #    $cmname = "$($envconfig.env)`CM"
     #}
     write-logentry -message "VM for CM will be named: $($CMConfig.name)" -type information
+    Write-LogEntry -Message "CM Settings are: $($CMConfig | ConvertTo-Json)" -Type Information
     write-logentry -message "Path for the VHDX for $($CMConfig.name) is: $($CMConfig.VHDXpath)" -type information
     if (((Invoke-Pester -TestName "CM" -PassThru -show None).TestResult | Where-Object {$_.name -match "CM Should Exist"}).result -notmatch "Passed") {
         write-logentry -message "CM for env:$($envconfig.env) doesn't exist, creating now" -type information
@@ -148,13 +149,13 @@ function new-SCCMServer {
         $cmnics = Invoke-Command -session $cmsessionLA -ScriptBlock {Get-NetAdapter}
         write-logentry -message "The following network adaptors $($cmnics -join ",") have been found on: $($CMConfig.name)" -type information
         if (((Invoke-Pester -TestName "CM" -PassThru -show None).TestResult | Where-Object {$_.name -match "CM IP Address"}).result -notmatch "Passed") {
-            $IPGateway = "$ipsubnet`.1"
-            $null = Invoke-Command -session $cmsessionLA -ScriptBlock {param($t, $i, $g, $d) new-NetIPAddress -InterfaceIndex $t -AddressFamily IPv4 -IPAddress "$i" -PrefixLength 24 -DefaultGateway "$i"; Set-DnsClientServerAddress -ServerAddresses ($d) -InterfaceIndex $t} -ArgumentList $cmnics.InterfaceIndex, $CMConfig.IPAddress, $IPGateway, $CMConfig.DCIP
+            $IPGateway = "$ipsubnet`1"
+            $null = Invoke-Command -session $cmsessionLA -ScriptBlock {param($t, $i, $g, $d) new-NetIPAddress -InterfaceIndex $t -AddressFamily IPv4 -IPAddress "$i" -PrefixLength 24 -DefaultGateway "$g"; Set-DnsClientServerAddress -ServerAddresses ($d) -InterfaceIndex $t} -ArgumentList $cmnics.InterfaceIndex, $CMConfig.IPAddress, $IPGateway, $CMConfig.DCIP
             write-logentry -message "IP Address $($CMConfig.IPAddress) has been assigned to $($CMConfig.name)" -type information
             start-sleep 300
         }
         if (((Invoke-Pester -TestName "CM" -PassThru -show None).TestResult | Where-Object {$_.name -match "CM has access to $($CMConfig.DomainFQDN)"}).result -match "Passed") {
-            while ((Invoke-Command -VMName $CMConfig.name -Credential $cmsessionLA {param($i)(test-netconnection "$i").pingsucceeded} -ArgumentList $cmconfig.DCIP -ErrorAction SilentlyContinue) -ne $true -and $stop -ne (get-date)) {Start-Sleep -Seconds 5}
+            while ((Invoke-Command -VMName $CMConfig.name -Credential $CMConfig.localadmin {param($i)(test-netconnection "$i" -ErrorAction SilentlyContinue).pingsucceeded} -ArgumentList $cmconfig.DCIP -ErrorAction SilentlyContinue) -ne $true -and $stop -ne (get-date)) {Start-Sleep -Seconds 5}
             Invoke-Command -session $cmsessionLA -ErrorAction SilentlyContinue -ScriptBlock {param($env, $domuser) Clear-DnsClientCache; Add-Computer -DomainName $env -domainCredential $domuser -Restart; Start-Sleep -Seconds 15; Restart-Computer -Force -Delay 0} -ArgumentList $cmconfig.domainFQDN, $CMConfig.domainuser
             write-logentry -message "Joined $($CMConfig.name) to domain $($cmconfig.domainFQDN)" -type information
             $stop = (get-date).AddMinutes(5)

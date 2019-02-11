@@ -24,9 +24,11 @@ Update the env.json file to reflect the location for SQL, ADK, SCCM, Windows Ser
 
 The script has been setup to use either TP or Production version of SCCM, and you can see in the code where this is handled.
 
+Execute LabTest.ps1 to spin up a Lab.
+
 ### Known issues ###
 
-CA, and SCCM are both installed but not fully configured.
+CM System Discovery setting does't auto configure.
 
 Tweet me on @onpremcloudguy if there are anything you think should be included.
 
