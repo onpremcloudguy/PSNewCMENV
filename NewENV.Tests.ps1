@@ -76,52 +76,137 @@ Describe "DC" -Tag ("Domain", "VM") {
     it 'DC SCCM Servers Group' -Skip:(!($TDCExists -eq 1 -and $TDCRunning -eq 1)) {$TDCSCCMGroupExists[0].name | should be "SCCM Servers"}
 }
 
-Describe "CM" -tag ("ConfigMgr", "VM") {
+if($Config.SCCMENVType -eq "CAS") {
+Describe "CMCAS" -tag ("CAS") {
     $CMConfig = [CM]::new()
-    $CMConfig.load("$vmpath\cmconfig.json")
-    $CMConfig
-    $TCMVHDXExists = (Test-Path -path $CMConfig.VHDXpath)
-    $TCMExists = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue).count
-    $TCMRunning = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue | Where-Object {$_.State -match "Running"}).count
-    if ($TCMExists -eq 1 -and $TCMRunning -eq 1) {
-        $TCMSession = new-PSSession -VMName $cmconfig.name -Credential $localadmin -ErrorAction SilentlyContinue
-        if (!($TCMSession)) {$TCMSession = new-PSSession -VMName $cmconfig.name -Credential $domuser}
-        $TCMIPAddress = (Invoke-Command -Session $TCMSession -ScriptBlock {(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress})
-        $TCMTestInternet = (Invoke-Command -Session $TCMSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).PingSucceeded
-        $TCMTestDomain = (Invoke-Command -Session $TCMSession -ScriptBlock {param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue} -ArgumentList $CMConfig.domainFQDN ).PingSucceeded
-        $TCMFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name BITS, BITS-IIS-Ext, BITS-Compact-Server, Web-Server, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-App-Dev, Web-Net-Ext, Web-Net-Ext45, Web-ASP, Web-Asp-Net, Web-Asp-Net45, Web-CGI, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Health, Web-Http-Logging, Web-Custom-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Performance, Web-Stat-Compression, Web-Security, Web-Filtering, Web-Basic-Auth, Web-IP-Security, Web-Url-Auth, Web-Windows-Auth, Web-Mgmt-Tools, Web-Mgmt-Console, Web-Mgmt-Compat, Web-Metabase, Web-Lgcy-Mgmt-Console, Web-Lgcy-Scripting, Web-WMI, Web-Scripting-Tools, Web-Mgmt-Service, RDC) | Where-Object {$_.installstate -eq "Installed"}}).count
-        $TCMNetFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name NET-Framework-Features, NET-Framework-Core) | Where-Object {$_.installstate -eq "Installed"}}).count
-        $TCMSQLInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "MSSQLSERVER" -ErrorAction SilentlyContinue}).name.count
-        $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit" -ErrorAction SilentlyContinue})
-        $TCMSCCMServerinGRP = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-ADGroupMember "SCCM Servers" | Where-Object {$_.name -eq $env:computername}} -ErrorAction SilentlyContinue).name.count
-        $TCMSCCMInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "SMS_EXECUTIVE" -ErrorAction SilentlyContinue}).name.count
-        $TCMSCCMConsoleInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe"})
-        if ($TCMSCCMConsoleInstalled) {
-            Invoke-Command -Session $TCMSession -ScriptBlock {param ($sitecode) import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; if ($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}; Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"} -ArgumentList $CMConfig.cmsitecode
-            $TCMBoundary = (Invoke-Command -Session $TCMSession -ScriptBlock {param($subname) Get-CMBoundary -name $subname} -ArgumentList $CMConfig.network).displayname.count
-            $TCMDiscovery = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-CMDiscoveryMethod -Name ActiveDirectorySystemDiscovery}).flag
+$CMConfig.load("$vmpath\$($config.env)`cmCASconfig.json")
+        $TCMVHDXExists = (Test-Path -path $CMConfig.VHDXpath)
+        $TCMExists = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue).count
+        $TCMRunning = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue | Where-Object {$_.State -match "Running"}).count
+        if ($TCMExists -eq 1 -and $TCMRunning -eq 1) {
+            $TCMSession = new-PSSession -VMName $cmconfig.name -Credential $localadmin -ErrorAction SilentlyContinue
+            if (!($TCMSession)) {$TCMSession = new-PSSession -VMName $cmconfig.name -Credential $domuser}
+            $TCMIPAddress = (Invoke-Command -Session $TCMSession -ScriptBlock {(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress})
+            $TCMTestInternet = (Invoke-Command -Session $TCMSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).PingSucceeded
+            $TCMTestDomain = (Invoke-Command -Session $TCMSession -ScriptBlock {param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue} -ArgumentList $CMConfig.domainFQDN ).PingSucceeded
+            $TCMFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name BITS, BITS-IIS-Ext, BITS-Compact-Server, Web-Server, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-App-Dev, Web-Net-Ext, Web-Net-Ext45, Web-ASP, Web-Asp-Net, Web-Asp-Net45, Web-CGI, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Health, Web-Http-Logging, Web-Custom-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Performance, Web-Stat-Compression, Web-Security, Web-Filtering, Web-Basic-Auth, Web-IP-Security, Web-Url-Auth, Web-Windows-Auth, Web-Mgmt-Tools, Web-Mgmt-Console, Web-Mgmt-Compat, Web-Metabase, Web-Lgcy-Mgmt-Console, Web-Lgcy-Scripting, Web-WMI, Web-Scripting-Tools, Web-Mgmt-Service, RDC) | Where-Object {$_.installstate -eq "Installed"}}).count
+            $TCMNetFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name NET-Framework-Features, NET-Framework-Core) | Where-Object {$_.installstate -eq "Installed"}}).count
+            $TCMSQLInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "MSSQLSERVER" -ErrorAction SilentlyContinue}).name.count
+            $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit" -ErrorAction SilentlyContinue})
+            $TCMSCCMServerinGRP = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-ADGroupMember "SCCM Servers" | Where-Object {$_.name -eq $env:computername}} -ErrorAction SilentlyContinue).name.count
+            $TCMSCCMInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "SMS_EXECUTIVE" -ErrorAction SilentlyContinue}).name.count
+            $TCMSCCMConsoleInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe"})
+            if ($TCMSCCMConsoleInstalled) {
+                Invoke-Command -Session $TCMSession -ScriptBlock {param ($sitecode) import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; if ($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}; Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"} -ArgumentList $CMConfig.cmsitecode
+                $TCMBoundary = (Invoke-Command -Session $TCMSession -ScriptBlock {param($subname) Get-CMBoundary -name $subname} -ArgumentList $CMConfig.network).displayname.count
+                $TCMDiscovery = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-CMDiscoveryMethod -Name ActiveDirectorySystemDiscovery}).flag
+            }
+            $TCMSession | Remove-PSSession
         }
-        $TCMSession | Remove-PSSession
-    }
-    it 'CM VHDX Should Exist' {$TCMVHDXExists | should be $true}
-    it 'CM Should Exist' {$TCMExists | should be 1}
-    it 'CM Should be running' {$TCMRunning | should be 1}
-    it 'CM IP Address' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMIPAddress | should be $CMConfig.IPAddress}
-    it 'CM has access to Internet' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestInternet | should be $true}
-    it "CM has access to $DomainFQDN" -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestDomain | Should be $true}
-    it 'CM .Net Feature installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMNetFeat | should be 2}
-    it 'CM Features are installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMFeat | should be 44}
-    it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSQLInstalled | should be 1}
-    it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMADKInstalled | should be $true}
-    it 'CM Server in Group' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMServerinGRP | should be 1}
-    it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
-    it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
-    it 'CM Site Boundary added' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMBoundary | should be 1}
-    it 'CM System Discovery enabled' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMDiscovery | should be 6}
-    ########
-    #TODO: Add in tests for SCCM Boundaries, Discovery
-    ########
+        it 'CM VHDX Should Exist' {$TCMVHDXExists | should be $true}
+        it 'CM Should Exist' {$TCMExists | should be 1}
+        it 'CM Should be running' {$TCMRunning | should be 1}
+        it 'CM IP Address' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMIPAddress | should be $CMConfig.IPAddress}
+        it 'CM has access to Internet' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestInternet | should be $true}
+        it "CM has access to $DomainFQDN" -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestDomain | Should be $true}
+        it 'CM .Net Feature installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMNetFeat | should be 2}
+        it 'CM Features are installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMFeat | should be 44}
+        it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSQLInstalled | should be 1}
+        it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMADKInstalled | should be $true}
+        it 'CM Server in Group' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMServerinGRP | should be 1}
+        it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
+        it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
+        it 'CM Site Boundary added' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMBoundary | should be 1}
+        it 'CM System Discovery enabled' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMDiscovery | should be 6}
 }
+Describe "CMCAS" -tag ("CASPRI") {
+    $CMConfig = [CM]::new()
+        $CMConfig.load("$vmpath\$($config.env)`cmCASPRIconfig.json")
+        $TCMVHDXExists = (Test-Path -path $CMConfig.VHDXpath)
+        $TCMExists = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue).count
+        $TCMRunning = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue | Where-Object {$_.State -match "Running"}).count
+        if ($TCMExists -eq 1 -and $TCMRunning -eq 1) {
+            $TCMSession = new-PSSession -VMName $cmconfig.name -Credential $localadmin -ErrorAction SilentlyContinue
+            if (!($TCMSession)) {$TCMSession = new-PSSession -VMName $cmconfig.name -Credential $domuser}
+            $TCMIPAddress = (Invoke-Command -Session $TCMSession -ScriptBlock {(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress})
+            $TCMTestInternet = (Invoke-Command -Session $TCMSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).PingSucceeded
+            $TCMTestDomain = (Invoke-Command -Session $TCMSession -ScriptBlock {param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue} -ArgumentList $CMConfig.domainFQDN ).PingSucceeded
+            $TCMFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name BITS, BITS-IIS-Ext, BITS-Compact-Server, Web-Server, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-App-Dev, Web-Net-Ext, Web-Net-Ext45, Web-ASP, Web-Asp-Net, Web-Asp-Net45, Web-CGI, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Health, Web-Http-Logging, Web-Custom-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Performance, Web-Stat-Compression, Web-Security, Web-Filtering, Web-Basic-Auth, Web-IP-Security, Web-Url-Auth, Web-Windows-Auth, Web-Mgmt-Tools, Web-Mgmt-Console, Web-Mgmt-Compat, Web-Metabase, Web-Lgcy-Mgmt-Console, Web-Lgcy-Scripting, Web-WMI, Web-Scripting-Tools, Web-Mgmt-Service, RDC) | Where-Object {$_.installstate -eq "Installed"}}).count
+            $TCMNetFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name NET-Framework-Features, NET-Framework-Core) | Where-Object {$_.installstate -eq "Installed"}}).count
+            $TCMSQLInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "MSSQLSERVER" -ErrorAction SilentlyContinue}).name.count
+            $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit" -ErrorAction SilentlyContinue})
+            $TCMSCCMServerinGRP = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-ADGroupMember "SCCM Servers" | Where-Object {$_.name -eq $env:computername}} -ErrorAction SilentlyContinue).name.count
+            $TCMSCCMInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "SMS_EXECUTIVE" -ErrorAction SilentlyContinue}).name.count
+            $TCMSCCMConsoleInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe"})
+            if ($TCMSCCMConsoleInstalled) {
+                Invoke-Command -Session $TCMSession -ScriptBlock {param ($sitecode) import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; if ($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}; Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"} -ArgumentList $CMConfig.cmsitecode
+                $TCMBoundary = (Invoke-Command -Session $TCMSession -ScriptBlock {param($subname) Get-CMBoundary -name $subname} -ArgumentList $CMConfig.network).displayname.count
+                $TCMDiscovery = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-CMDiscoveryMethod -Name ActiveDirectorySystemDiscovery}).flag
+            }
+            $TCMSession | Remove-PSSession
+        }
+        it 'CM VHDX Should Exist' {$TCMVHDXExists | should be $true}
+        it 'CM Should Exist' {$TCMExists | should be 1}
+        it 'CM Should be running' {$TCMRunning | should be 1}
+        it 'CM IP Address' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMIPAddress | should be $CMConfig.IPAddress}
+        it 'CM has access to Internet' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestInternet | should be $true}
+        it "CM has access to $DomainFQDN" -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestDomain | Should be $true}
+        it 'CM .Net Feature installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMNetFeat | should be 2}
+        it 'CM Features are installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMFeat | should be 44}
+        it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSQLInstalled | should be 1}
+        it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMADKInstalled | should be $true}
+        it 'CM Server in Group' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMServerinGRP | should be 1}
+        it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
+        it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
+        it 'CM Site Boundary added' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMBoundary | should be 1}
+        it 'CM System Discovery enabled' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMDiscovery | should be 6}
+}
+}
+else {
+    Describe "CM" -tag ("PRI") {
+        $CMConfig = [CM]::new()
+        $CMConfig.load("$vmpath\$($config.env)`cmconfig.json")
+        $TCMVHDXExists = (Test-Path -path $CMConfig.VHDXpath)
+        $TCMExists = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue).count
+        $TCMRunning = (get-vm -name $cmconfig.name -ErrorAction SilentlyContinue | Where-Object {$_.State -match "Running"}).count
+        if ($TCMExists -eq 1 -and $TCMRunning -eq 1) {
+            $TCMSession = new-PSSession -VMName $cmconfig.name -Credential $localadmin -ErrorAction SilentlyContinue
+            if (!($TCMSession)) {$TCMSession = new-PSSession -VMName $cmconfig.name -Credential $domuser}
+            $TCMIPAddress = (Invoke-Command -Session $TCMSession -ScriptBlock {(Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress})
+            $TCMTestInternet = (Invoke-Command -Session $TCMSession -ScriptBlock {test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue}).PingSucceeded
+            $TCMTestDomain = (Invoke-Command -Session $TCMSession -ScriptBlock {param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue} -ArgumentList $CMConfig.domainFQDN ).PingSucceeded
+            $TCMFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name BITS, BITS-IIS-Ext, BITS-Compact-Server, Web-Server, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-App-Dev, Web-Net-Ext, Web-Net-Ext45, Web-ASP, Web-Asp-Net, Web-Asp-Net45, Web-CGI, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Health, Web-Http-Logging, Web-Custom-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Performance, Web-Stat-Compression, Web-Security, Web-Filtering, Web-Basic-Auth, Web-IP-Security, Web-Url-Auth, Web-Windows-Auth, Web-Mgmt-Tools, Web-Mgmt-Console, Web-Mgmt-Compat, Web-Metabase, Web-Lgcy-Mgmt-Console, Web-Lgcy-Scripting, Web-WMI, Web-Scripting-Tools, Web-Mgmt-Service, RDC) | Where-Object {$_.installstate -eq "Installed"}}).count
+            $TCMNetFeat = (Invoke-Command -Session $TCMSession -ScriptBlock {(get-windowsfeature -name NET-Framework-Features, NET-Framework-Core) | Where-Object {$_.installstate -eq "Installed"}}).count
+            $TCMSQLInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "MSSQLSERVER" -ErrorAction SilentlyContinue}).name.count
+            $TCMADKInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Windows Kits\10\Assessment and deployment kit" -ErrorAction SilentlyContinue})
+            $TCMSCCMServerinGRP = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-ADGroupMember "SCCM Servers" | Where-Object {$_.name -eq $env:computername}} -ErrorAction SilentlyContinue).name.count
+            $TCMSCCMInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {get-service -name "SMS_EXECUTIVE" -ErrorAction SilentlyContinue}).name.count
+            $TCMSCCMConsoleInstalled = (Invoke-Command -Session $TCMSession -ScriptBlock {test-path "C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe"})
+            if ($TCMSCCMConsoleInstalled) {
+                Invoke-Command -Session $TCMSession -ScriptBlock {param ($sitecode) import-module "$(($env:SMS_ADMIN_UI_PATH).remove(($env:SMS_ADMIN_UI_PATH).Length -4, 4))ConfigurationManager.psd1"; if ($null -eq (Get-PSDrive -Name $SiteCode -PSProvider CMSite -ErrorAction SilentlyContinue)) {New-PSDrive -Name $SiteCode -PSProvider CMSite -Root $env:COMPUTERNAME}; Set-Location "$((Get-PSDrive -PSProvider CMSite).name)`:"} -ArgumentList $CMConfig.cmsitecode
+                $TCMBoundary = (Invoke-Command -Session $TCMSession -ScriptBlock {param($subname) Get-CMBoundary -name $subname} -ArgumentList $CMConfig.network).displayname.count
+                $TCMDiscovery = (Invoke-Command -Session $TCMSession -ScriptBlock {Get-CMDiscoveryMethod -Name ActiveDirectorySystemDiscovery}).flag
+            }
+            $TCMSession | Remove-PSSession
+        }
+        it 'CM VHDX Should Exist' {$TCMVHDXExists | should be $true}
+        it 'CM Should Exist' {$TCMExists | should be 1}
+        it 'CM Should be running' {$TCMRunning | should be 1}
+        it 'CM IP Address' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMIPAddress | should be $CMConfig.IPAddress}
+        it 'CM has access to Internet' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestInternet | should be $true}
+        it "CM has access to $DomainFQDN" -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMTestDomain | Should be $true}
+        it 'CM .Net Feature installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMNetFeat | should be 2}
+        it 'CM Features are installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMFeat | should be 44}
+        it 'CM SQL Instance is installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSQLInstalled | should be 1}
+        it 'CM ADK Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMADKInstalled | should be $true}
+        it 'CM Server in Group' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMServerinGRP | should be 1}
+        it 'CM SCCM Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMInstalled | should be 1}
+        it 'CM SCCM Console Installed' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1)) {$TCMSCCMConsoleInstalled | should be $true }
+        it 'CM Site Boundary added' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMBoundary | should be 1}
+        it 'CM System Discovery enabled' -Skip:(!($TCMExists -eq 1 -and $TCMRunning -eq 1 -and $TCMSCCMConsoleInstalled)) {$TCMDiscovery | should be 6}
+    }
+}
+
 
 Describe "CA" -tag ("CA", "VM") {
     $CAConfig = [CA]::new()

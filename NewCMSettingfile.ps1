@@ -1,24 +1,31 @@
 function New-CMSettingfile{
 param(
-    [switch]
-    $cas,
-    [switch]
-    $PRI,
+    [Parameter(ParameterSetName = 'NoClass')]
+    [ValidateSet("CAS","PRI","CASPRI")]
+    [string]
+    $CMServerType,
     $ServerName,
     $cmsitecode,
     $domainFQDN,
     $sqlsettings,
+    [parameter(Mandatory=$false)]
     $CasServerName,
+    [parameter(Mandatory=$false)]
+    $CasSiteCode,
     [ValidateSet("TP","Prod")]
     [string]
     $ver
 )
 if($ver -eq "Prod"){
-    if($cas.IsPresent -and $pri.IsPresent){
+    if($CMServerType -eq "CAS"){
+        $hashident = @{'action' = 'InstallCAS'}
+    }
+    elseif($CMServerType -eq "PRI") {
         $hashident = @{'action' = 'InstallPrimarySite'}
     }
-    else {
-        $hashident = @{'action' = 'InstallCAS'}
+    elseif($CMServerType -eq "CASPRI"){
+        $hashident = @{'action' = 'InstallPrimarySite';
+            'CDLatest' = "1"}
     }
 }    
 elseif($ver -eq "TP"){
@@ -26,7 +33,7 @@ elseif($ver -eq "TP"){
         'Preview' = "1"
     }
 }
-if ($cas.IsPresent -and !($pri.IsPresent)){
+if ($CMServerType -eq "CAS"){
     $hashoptions = @{'ProductID' = 'EVAL';
         'SiteCode' = $cmsitecode;
         'SiteName' = "Tech Preview $cmsitecode";
@@ -39,7 +46,7 @@ if ($cas.IsPresent -and !($pri.IsPresent)){
         'JoinCEIP' = "0";
     }
 }
-else {
+elseif ($CMServerType -eq "PRI") {
     $hashoptions = @{'ProductID' = 'EVAL';
         'SiteCode' = $cmsitecode;
         'SiteName' = "Tech Preview $cmsitecode";
@@ -49,6 +56,25 @@ else {
         'ClientsUsePKICertificate' = "0";
         'PrerequisiteComp' = "$SCCMDLPreDown";
         'PrerequisitePath' = "C:\DATA\SCCM\DL";
+        'ManagementPoint' = "$cmOSName.$DomainFQDN";
+        'ManagementPointProtocol' = "HTTP";
+        'DistributionPoint' = "$cmOSName.$DomainFQDN";
+        'DistributionPointProtocol' = "HTTP";
+        'DistributionPointInstallIIS' = "0";
+        'AdminConsole' = "1";
+        'JoinCEIP' = "0";
+    }
+}
+elseif ($CMServerType -eq "CASPRI") {
+    $hashoptions = @{'ProductID' = 'EVAL';
+        'SiteCode' = $cmsitecode;
+        'SiteName' = "Tech Preview";
+        'SMSInstallDir' = 'C:\Program Files\Microsoft Configuration Manager';
+        'SDKServer' = "$cmOSName.$DomainFQDN";
+        'RoleCommunicationProtocol' = "HTTPorHTTPS";
+        'ClientsUsePKICertificate' = "0";
+        'PrerequisiteComp' = "$SCCMDLPreDown";
+        'PrerequisitePath' = "\\$CasServerName\SMS_$CasSiteCode\cd.latest\DL";
         'ManagementPoint' = "$cmOSName.$DomainFQDN";
         'ManagementPointProtocol' = "HTTP";
         'DistributionPoint' = "$cmOSName.$DomainFQDN";
@@ -71,7 +97,7 @@ $hashCloud = @{
 }
 $hashSCOpts = @{
 }
-if(![string]::IsNullOrEmpty($CasServerName))
+if($CMServerType -eq "CASPRI")
 {
     $hashHierarchy = @{
         'CCARSiteServer' = "$CasServerName"

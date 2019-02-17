@@ -48,6 +48,7 @@ $vmsnapshot = if ($config.Enablesnapshot -eq 1) {$true}else {$false}
 Write-LogEntry -Type Information -Message "Snapshots have been: $vmsnapshot"
 $unattendpath = $config.REFVHDX -replace ($config.REFVHDX.split('\') | Select-Object -last 1), "Unattended.xml"
 Write-LogEntry -Type Information -Message "Windows 2016 unattend file is: $unattendpath"
+$SCCMENVType = $Config.SCCMENVType
 #$servertemplates = (Get-Content "$scriptpath\SVRTemplates.json" -Raw | ConvertFrom-Json).ServerTemplates
 #endregion 
     
@@ -93,28 +94,83 @@ $DCConfig.refvhdx = $RefVHDX
 $DCConfig.Save("$vmpath\dcconfig.json")
 #endregion
 
-#region CMConfig
-$CMConfig = [CM]::new()
-$CMConfig.name = "$($config.env)`CM"
-$CMConfig.cores = 4
-$CMConfig.ram = 12
-$CMConfig.IPAddress = "$ipsub`11"
-$CMConfig.network = $swname
-$CMConfig.VHDXpath = "$vmpath\$($config.env)`CMc.vhdx"
-$CMConfig.localadmin = $localadmin
-$CMConfig.domainuser = $domuser
-$CMConfig.AdmPwd = $admpwd
-$CMConfig.domainFQDN = $domainfqdn
-$CMConfig.VMSnapshotenabled = $false
-$CMConfig.cmsitecode = $cmsitecode
-$CMConfig.SCCMDLPreDownloaded = $sccmdlpredown
-$CMConfig.DCIP = $DCConfig.IPAddress
-$CMConfig.RefVHDX = $RefVHDX
-$CMConfig.SQLISO = $config.SQLISO
-$CMConfig.SCCMPath = $config.SCCMPath
-$CMConfig.ADKPath = $config.ADKPATH
-$CMConfig.domainnetbios = $domainnetbios
-$CMConfig.save("$vmpath\cmconfig.json")
+#region CMConfig - Primary Server
+if ($SCCMENVType -eq "PRI") {
+    $CMConfig = [CM]::new()
+    $CMConfig.name = "$($config.env)`CM"
+    $CMConfig.cores = 4
+    $CMConfig.ram = 12
+    $CMConfig.IPAddress = "$ipsub`11"
+    $CMConfig.network = $swname
+    $CMConfig.VHDXpath = "$vmpath\$($config.env)`CMc.vhdx"
+    $CMConfig.localadmin = $localadmin
+    $CMConfig.domainuser = $domuser
+    $CMConfig.AdmPwd = $admpwd
+    $CMConfig.domainFQDN = $domainfqdn
+    $CMConfig.VMSnapshotenabled = $false
+    $CMConfig.cmsitecode = $cmsitecode
+    $CMConfig.SCCMDLPreDownloaded = $sccmdlpredown
+    $CMConfig.DCIP = $DCConfig.IPAddress
+    $CMConfig.RefVHDX = $RefVHDX
+    $CMConfig.SQLISO = $config.SQLISO
+    $CMConfig.SCCMPath = $config.SCCMPath
+    $CMConfig.ADKPath = $config.ADKPATH
+    $CMConfig.domainnetbios = $domainnetbios
+    $CMConfig.CMServerType = "PRI"
+    $CMConfig.save("$vmpath\$($config.env)`cmconfig.json")
+}
+#endregion
+
+#region CMConfig - CAS ENV
+else
+{
+    $CMCASConfig = [CM]::new()
+    $CMCASConfig.name = "$($config.env)`CMCAS"
+    $CMCASConfig.cores = 4
+    $CMCASConfig.ram = 12
+    $CMCASConfig.IPAddress = "$ipsub`11"
+    $CMCASConfig.network = $swname
+    $CMCASConfig.VHDXpath = "$vmpath\$($config.env)`CMCASc.vhdx"
+    $CMCASConfig.localadmin = $localadmin
+    $CMCASConfig.domainuser = $domuser
+    $CMCASConfig.AdmPwd = $admpwd
+    $CMCASConfig.domainFQDN = $domainfqdn
+    $CMCASConfig.VMSnapshotenabled = $false
+    $CMCASConfig.cmsitecode = $cmsitecode
+    $CMCASConfig.SCCMDLPreDownloaded = $sccmdlpredown
+    $CMCASConfig.DCIP = $DCConfig.IPAddress
+    $CMCASConfig.RefVHDX = $RefVHDX
+    $CMCASConfig.SQLISO = $config.SQLISO
+    $CMCASConfig.SCCMPath = $config.SCCMPath
+    $CMCASConfig.ADKPath = $config.ADKPATH
+    $CMCASConfig.domainnetbios = $domainnetbios
+    $CMCASConfig.CMServerType = "CAS"
+    $CMCASConfig.save("$vmpath\$($config.env)`cmCASconfig.json")
+
+    $CMCASPRIConfig = [CM]::new()
+    $CMCASPRIConfig.name = "$($config.env)`CMCASPRI"
+    $CMCASPRIConfig.cores = 4
+    $CMCASPRIConfig.ram = 12
+    $CMCASPRIConfig.IPAddress = "$ipsub`12"
+    $CMCASPRIConfig.network = $swname
+    $CMCASPRIConfig.VHDXpath = "$vmpath\$($config.env)`CMCASPRIc.vhdx"
+    $CMCASPRIConfig.localadmin = $localadmin
+    $CMCASPRIConfig.domainuser = $domuser
+    $CMCASPRIConfig.AdmPwd = $admpwd
+    $CMCASPRIConfig.domainFQDN = $domainfqdn
+    $CMCASPRIConfig.VMSnapshotenabled = $false
+    $CMCASPRIConfig.cmsitecode = $cmsitecode
+    $CMCASPRIConfig.SCCMDLPreDownloaded = $sccmdlpredown
+    $CMCASPRIConfig.DCIP = $DCConfig.IPAddress
+    $CMCASPRIConfig.RefVHDX = $RefVHDX
+    $CMCASPRIConfig.SQLISO = $config.SQLISO
+    $CMCASPRIConfig.SCCMPath = $config.SCCMPath
+    $CMCASPRIConfig.ADKPath = $config.ADKPATH
+    $CMCASPRIConfig.domainnetbios = $domainnetbios
+    $CMCASPRIConfig.CMServerType = "CASPRI"
+    $CMCASPRIConfig.CASIPAddress = $CMCASConfig.IPAddress
+    $CMCASPRIConfig.save("$vmpath\$($config.env)`cmCASPRIconfig.json")
+}
 #endregion
 
 #region CAConfig
@@ -139,5 +195,11 @@ new-env -ENVConfig $envconfig
 new-RRASServer -RRASConfig $RRASConfig
 new-DC -DCConfig $DCConfig
 New-CAServer -CAConfig $CAConfig
-new-SCCMServer -CMConfig $CMConfig
+if ($SCCMENVType -eq "PRI") {
+    new-SCCMServer -CMConfig $CMConfig
+}
+else {
+    new-SCCMServer -CMConfig $CMCASConfig
+    new-SCCMServer -CMConfig $CMCASPRIConfig
+}
 #endregion

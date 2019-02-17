@@ -75,8 +75,11 @@ class CM {
     [string]$SCCMPath
     [string]$ADKPath
     [string]$domainnetbios
+    [string]$CMServerType
+    [string]$CASIPAddress
+    [bool]$Built
     Save ([string] $path) {
-        $this | ConvertTo-Json | Out-File $path
+        $this | ConvertTo-Json | Out-File $path -Force
     }
     load ([string] $path){
         $settings = get-content $path | ConvertFrom-Json
@@ -97,6 +100,9 @@ class CM {
         $this.SCCMPath = $settings.SCCMPath
         $this.ADKPath = $settings.ADKPath
         $this.domainnetbios = $settings.domainnetbios
+        $this.CMServerType = $settings.CMServerType
+        $this.CASIPAddress = $settings.CASIPAddress
+        $this.Built = $settings.built
     }
 }
 class env {

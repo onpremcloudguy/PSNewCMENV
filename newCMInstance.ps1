@@ -9,23 +9,35 @@ function new-CMInstance{
         $ver,
         $ipsub,
         $domainnetbios,
-        [switch]
-        $cas,
-        [switch]
-        $PRI,
+        [ValidateSet("CAS","PRI","CASPRI")]
         [string]
-        $casservername
+        $CMServerType,
+        [string]
+        $CASIPAddress
     )
+    if($CMServerType -eq "CASPRI")
+    {
+        $casservername = Invoke-Command -Session $cmsession -ScriptBlock {param($i) [System.Net.Dns]::GetHostEntry("$i").hostname} -ArgumentList $CASIPAddress
+    }
     $cmOSName = Invoke-Command -Session $cmsession -ScriptBlock {$env:COMPUTERNAME}
     $sqlsettings = invoke-command -Session $cmsession -ScriptBlock {(new-object ('Microsoft.SqlServer.Management.Smo.Server') $env:COMPUTERNAME).Settings | Select-Object DefaultFile, Defaultlog}
     write-logentry -message "Host name for $cmname is: $cmosname"
     $cmsitecode = "$cmsitecode"
-    $cminstallini = New-CMSettingfile -PRI:($pri.IsPresent) -cas:($cas.IsPresent) -ServerName $cmOSName -cmsitecode $cmsitecode -domainFQDN $DomainFQDN -sqlsettings $sqlsettings -ver Prod -CasServerName = $casservername
+    if($CMServerType -eq "CASPRI")
+    {
+        $cminstallini = New-CMSettingfile -CMServerType $CMServerType -ServerName $cmOSName -cmsitecode "PRI" -domainFQDN $DomainFQDN -sqlsettings $sqlsettings -ver Prod -CasServerName $casservername -CasSiteCode $cmsitecode
+    }
+    else {
+        $cminstallini = New-CMSettingfile -CMServerType $CMServerType -ServerName $cmOSName -cmsitecode $cmsitecode -domainFQDN $DomainFQDN -sqlsettings $sqlsettings -ver Prod
+    }
+    
     write-logentry -message "CM install ini for $cmname is: $cminstallini" -type information
     Invoke-Command -Session $cmsession -ScriptBlock {param($ini) new-item -ItemType file -Path c:\CMinstall.ini -Value $INI -Force} -ArgumentList $CMInstallINI | out-null
     Invoke-Command -Session $cmsession -ScriptBlock {Add-ADGroupMember "SCCM Servers" -Members "$($env:computername)$"}
-    invoke-command -Session $cmsession -scriptblock {start-process -filepath "c:\data\sccm\smssetup\bin\x64\extadsch.exe" -wait}
-    write-logentry -message "AD Schema has been exteded for SCCM on $domainfqdn"
+    if(!($CMServerType -eq "CASPRI")){
+        invoke-command -Session $cmsession -scriptblock {start-process -filepath "c:\data\sccm\smssetup\bin\x64\extadsch.exe" -wait}
+        write-logentry -message "AD Schema has been exteded for SCCM on $domainfqdn"
+    }
     write-logentry -message "SCCM installation process has started on $cmname this will take some time so grab a coffee" -type information
     Invoke-Command -Session $cmsession -ScriptBlock {Start-Process -FilePath "C:\DATA\SCCM\SMSSETUP\bin\x64\setup.exe" -ArgumentList "/script c:\CMinstall.ini" -wait}
     if(!($cas.IsPresent)){
