@@ -7,7 +7,7 @@ function new-LabVHDX {
     [parameter(Mandatory)]
     [string]
     $unattend,
-    [parameter(Mandatory)]
+    [parameter]
     [switch]
     $core,
     [parameter(Mandatory)]
@@ -30,6 +30,10 @@ function new-LabVHDX {
     Convert-WindowsImage -SourcePath $WinISO -Edition $cornum -VhdType Dynamic -VhdFormat VHDX -VhdPath $vhdxpath -DiskLayout UEFI -SizeBytes 127gb -UnattendPath $unattend
     $drive = (Mount-VHD -Path $vhdxpath -Passthru | Get-Disk | Get-Partition | Where-Object {$_.type -eq 'Basic'}).DriveLetter
     new-item "$drive`:\data" -ItemType Directory | Out-Null
-    Copy-Item -Path $WinNet35Cab -Destination "$drive`:\data\microsoft-windows-netfx3-ondemand-package.cab"
+    $netfiles = get-childitem -Path $winnet35cab -Filter "*netfx*"
+    foreach($net in $netfiles)
+    {
+        Copy-Item -Path $net.fullname -Destination "$drive`:\data\$($net.name)"
+    }
     Dismount-VHD -Path $vhdxpath
 }

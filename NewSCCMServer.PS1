@@ -78,7 +78,10 @@ function new-SCCMServer {
         $CMServerType = "PRI",
         [Parameter(ParameterSetName = 'NoClass')]
         [string]
-        $CASIPAddress
+        $CASIPAddress,
+        [Parameter(ParameterSetName = 'NoClass')]
+        [string]
+        $SCCMVer
     )
     if (!$PSBoundParameters.ContainsKey('CMConfig')) {
         $CMConfig = [CM]::new()
@@ -103,6 +106,7 @@ function new-SCCMServer {
         $CMConfig.domainnetbios = $domainnetbios
         $CMConfig.CMServerType = $CMServerType
         $CMConfig.CASIPAddress = $CASIPAddress
+        $CMConfig.SCCMVer = $SCCMVer
     }
     $ipsubnet = $CMConfig.IPAddress.substring(0, ($CMConfig.IPAddress.length - ([ipaddress] $CMConfig.IPAddress).GetAddressBytes()[3].count - 1))
     Write-logentry -message "CM Server Started: $(Get-Date)" -type information
@@ -201,13 +205,14 @@ function new-SCCMServer {
         if (((Invoke-Pester -tag $cmConfig.CMServerType -PassThru -show None).TestResult | Where-Object {$_.name -match "CM SCCM Installed"}).result -notmatch "Passed") {
             if($CMConfig.CMServerType -eq "CASPRI")
             {
-                new-CMInstance -CMServerType $CMConfig.CMServerType -cmsession $cmsession -cmname $CMConfig.name -cmsitecode $cmconfig.cmsitecode -domainfqdn $CMConfig.domainFQDN -ver "Prod" -ipsub $ipsubnet -domainnetbios $CMConfig.domainnetbios -CASIPAddress $CMConfig.CASIPAddress
+                new-CMInstance -CMServerType $CMConfig.CMServerType -cmsession $cmsession -cmname $CMConfig.name -cmsitecode $cmconfig.cmsitecode -domainfqdn $CMConfig.domainFQDN -ver $CMConfig.SCCMVer -ipsub $ipsubnet -domainnetbios $CMConfig.domainnetbios -CASIPAddress $CMConfig.CASIPAddress
             }
             else {
-                new-CMInstance -CMServerType $CMConfig.CMServerType -cmsession $cmsession -cmname $CMConfig.name -cmsitecode $cmconfig.cmsitecode -domainfqdn $CMConfig.domainFQDN -ver "Prod" -ipsub $ipsubnet -domainnetbios $CMConfig.domainnetbios #-cas:($cas.IsPresent) -pri:($pri.ispresent) -casservername $casservername    
+                new-CMInstance -CMServerType $CMConfig.CMServerType -cmsession $cmsession -cmname $CMConfig.name -cmsitecode $cmconfig.cmsitecode -domainfqdn $CMConfig.domainFQDN -ver $CMConfig.SCCMVer -ipsub $ipsubnet -domainnetbios $CMConfig.domainnetbios #-cas:($cas.IsPresent) -pri:($pri.ispresent) -casservername $casservername    
             }
             
         }
+        Invoke-Command -Session $cmsession -ScriptBlock { Set-ItemProperty -path HKLM:\SOFTWARE\Microsoft\ServerManager -name DoNotOpenServerManagerAtLogon -Type DWord -value "1" -Force }
         $cmsession | remove-PSSession
         write-logentry -message "Powershell Direct session for $($CMConfig.domainuser.username) on $($CMConfig.name) has been disposed" -type information
     }

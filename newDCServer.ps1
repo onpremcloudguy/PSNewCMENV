@@ -122,8 +122,17 @@ function new-DC {
         Invoke-Command -Session $dcsessiondom -ScriptBlock {$root = (Get-ADRootDSE).defaultNamingContext; if (!([adsi]::Exists("LDAP://CN=System Management,CN=System,$root"))) {$null= New-ADObject -Type Container -name "System Management" -Path "CN=System,$root" -Passthru}; $acl = get-acl "ad:CN=System Management,CN=System,$root"; $objGroup = Get-ADGroup -filter {Name -eq "SCCM Servers"}; $All = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::SelfAndChildren; $ace = new-object System.DirectoryServices.ActiveDirectoryAccessRule $objGroup.SID, "GenericAll", "Allow", $All; $acl.AddAccessRule($ace); Set-acl -aclobject $acl "ad:CN=System Management,CN=System,$root"}
         Write-LogEntry -Message "System Management Container created in $($dcconfig.DomainFQDN) forrest on $($dcconfig.name)" -type Information
         Write-LogEntry -Type Information -Message "Configuring DHCP Server"
-        Invoke-Command -Session $dcsessiondom -ScriptBlock {param($domname, $iprange)Add-DhcpServerInDC; Add-DhcpServerv4Scope -name "$domname" -StartRange "$($iprange)100" -EndRange "$($iprange)150" -SubnetMask "255.255.255.0"} -ArgumentList $domainnetbios, $ipsubnet | Out-Null
+        ### need to add DNS and Default Gateway addresses too the DHCP Scope.
+        Invoke-Command -Session $dcsessiondom -ScriptBlock {param($domname, $iprange)
+            Add-DhcpServerInDC; 
+            Add-DhcpServerv4Scope -name "$domname" -StartRange "$($iprange)100" -EndRange "$($iprange)150" -SubnetMask "255.255.255.0"
+            Set-DhcpServerv4OptionValue -ComputerName $env:COMPUTERNAME -OptionId 003 -Value "$($iprange)1"
+            Set-DhcpServerv4OptionValue -ComputerName $env:COMPUTERNAME -OptionId 006 -Value "$($iprange)10"
+        } -ArgumentList $domainnetbios, $ipsubnet | Out-Null
         Write-LogEntry -Type Information -Message "DHCP Scope has been configured for $($ipsubnet)100 to $($ipsubnet)150 with a mask of 255.255.255.0"
+        Invoke-Command -Session $dcsessiondom -ScriptBlock {Set-aduser -identity "Administrator" -PasswordNeverExpires $true}
+        Write-LogEntry -type Information -message "Domain admin account set to not expire"
+        Invoke-Command -Session $dcsessiondom -ScriptBlock { Set-ItemProperty -path HKLM:\SOFTWARE\Microsoft\ServerManager -name DoNotOpenServerManagerAtLogon -Type DWord -value "1" -Force }
         $dcsessiondom | Remove-PSSession
     }
     Write-LogEntry -Message "DC Server Completed: $(Get-Date)" -Type Information

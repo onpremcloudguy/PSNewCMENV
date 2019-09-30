@@ -10,7 +10,7 @@ function Set-LabSettings {
     
 #endregion
 #LAZY MODULE TESTING, WILL BE FIXED ONCE COMPLETED
-foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object {$_.name -notin ("NewENV.Tests.ps1", "labtest.ps1")}) {
+foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object { $_.name -notin ("NewENV.Tests.ps1", "labtest.ps1") }) {
     . ".\$psfile"
 }
     
@@ -18,9 +18,9 @@ foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object {$_.name -notin (
 #region import JSON Settings
 $scriptpath = $PSScriptRoot
 $config = Get-Content "$scriptpath\env.json" -Raw | ConvertFrom-Json
-$envConfig = $config.ENVConfig | Where-Object {$_.env -eq $config.env}
+$envConfig = $config.ENVConfig | Where-Object { $_.env -eq $config.env }
 $script:logfile = "$($envConfig.vmpath)\Build.log"
-if (!(Test-Path $envConfig.vmpath)) {new-item -ItemType Directory -Force -Path $envConfig.vmpath | Out-Null}
+if (!(Test-Path $envConfig.vmpath)) { new-item -ItemType Directory -Force -Path $envConfig.vmpath | Out-Null }
 Write-LogEntry -Type Information -Message "Start of build process for $($config.env) ------"
 $admpwd = $envConfig.AdminPW
 Write-LogEntry -Type Information -Message "Admin password set to: $admpwd"
@@ -44,11 +44,12 @@ $cmsitecode = $envConfig.CMSiteCode
 Write-LogEntry -Type Information -Message "SCCM Site code is: $cmsitecode"
 $SCCMDLPreDown = $config.SCCMDLPreDown
 Write-LogEntry -Type Information -Message "SCCM Content was Predownloaded: $($sccmdlpredown -eq 1)"
-$vmsnapshot = if ($config.Enablesnapshot -eq 1) {$true}else {$false} 
+$vmsnapshot = if ($config.Enablesnapshot -eq 1) { $true }else { $false } 
 Write-LogEntry -Type Information -Message "Snapshots have been: $vmsnapshot"
 $unattendpath = $config.REFVHDX -replace ($config.REFVHDX.split('\') | Select-Object -last 1), "Unattended.xml"
 Write-LogEntry -Type Information -Message "Windows 2016 unattend file is: $unattendpath"
 $SCCMENVType = $Config.SCCMENVType
+$SCCMVer = $config.SCCMVersion
 #$servertemplates = (Get-Content "$scriptpath\SVRTemplates.json" -Raw | ConvertFrom-Json).ServerTemplates
 #endregion 
     
@@ -117,13 +118,13 @@ if ($SCCMENVType -eq "PRI") {
     $CMConfig.ADKPath = $config.ADKPATH
     $CMConfig.domainnetbios = $domainnetbios
     $CMConfig.CMServerType = "PRI"
+    $CMConfig.SCCMVer = $SCCMVer
     $CMConfig.save("$vmpath\$($config.env)`cmconfig.json")
 }
 #endregion
 
 #region CMConfig - CAS ENV
-else
-{
+else {
     $CMCASConfig = [CM]::new()
     $CMCASConfig.name = "$($config.env)`CMCAS"
     $CMCASConfig.cores = 4
@@ -145,6 +146,7 @@ else
     $CMCASConfig.ADKPath = $config.ADKPATH
     $CMCASConfig.domainnetbios = $domainnetbios
     $CMCASConfig.CMServerType = "CAS"
+    $CMConfig.SCCMVer = $SCCMVer
     $CMCASConfig.save("$vmpath\$($config.env)`cmCASconfig.json")
 
     $CMCASPRIConfig = [CM]::new()
@@ -168,6 +170,7 @@ else
     $CMCASPRIConfig.ADKPath = $config.ADKPATH
     $CMCASPRIConfig.domainnetbios = $domainnetbios
     $CMCASPRIConfig.CMServerType = "CASPRI"
+    $CMConfig.SCCMVer = $SCCMVer
     $CMCASPRIConfig.CASIPAddress = $CMCASConfig.IPAddress
     $CMCASPRIConfig.save("$vmpath\$($config.env)`cmCASPRIconfig.json")
 }

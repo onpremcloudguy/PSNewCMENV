@@ -1,5 +1,4 @@
-
-function New-UnattendXml{
+function New-UnattendXml {
     [CmdletBinding()]
     Param
     (
@@ -12,9 +11,46 @@ function New-UnattendXml{
         $admpwd,
         [Parameter(Mandatory)]
         [string]
-        $outfile
+        $outfile,
+        [Parameter]
+        [switch]
+        $WKS,
+        [Parameter]
+        [string]
+        $domainFQDN,
+        [Parameter]
+        [string]
+        $Adminuname,
+        [Parameter]
+        [string]
+        $domainNetBios
     )
-$unattendTemplate = [xml]@" 
+    if ($WKS.IsPresent) {
+        $unattendTemplate = [xml]@" 
+        <?xml version="1.0" encoding="utf-8"?>
+        <unattend xmlns="urn:schemas-microsoft-com:unattend">
+            <settings pass="specialize">
+                <component name="Microsoft-Windows-UnattendedJoin" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                    <Identification>
+                        <Credentials>
+                            <Domain><<DomNetBios>></Domain>
+                            <Password><<ADM_PWD>></Password>
+                            <Username><<AdminUname>></Username>
+                        </Credentials>
+                        <JoinDomain><<DomainFQDN>></JoinDomain>
+                    </Identification>
+                </component>
+            </settings>
+        </unattend>
+"@
+        $unattendTemplate -replace "<<ADM_PWD>>", $admpwd 
+        $unattendTemplate -replace "<<DomNetBios>>", $domainNetBios 
+        $unattendTemplate -replace "<<AdminUname>>", $Adminuname
+        $unattendTemplate -replace "<<DomainFQDN>>", $domainFQDN
+        $unattendTemplate | Out-File -FilePath $outfile -Encoding utf8
+    }
+    else {
+        $unattendTemplate = [xml]@" 
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
     <servicing>
@@ -55,5 +91,6 @@ $unattendTemplate = [xml]@"
     </settings>
 </unattend>
 "@
-$unattendTemplate -replace "<<ADM_PWD>>", $admpwd | Out-File -FilePath $outfile -Encoding utf8
+        $unattendTemplate -replace "<<ADM_PWD>>", $admpwd | Out-File -FilePath $outfile -Encoding utf8
+    }
 }

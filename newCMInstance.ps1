@@ -25,10 +25,10 @@ function new-CMInstance{
     $cmsitecode = "$cmsitecode"
     if($CMServerType -eq "CASPRI")
     {
-        $cminstallini = New-CMSettingfile -CMServerType $CMServerType -ServerName $cmOSName -cmsitecode "PRI" -domainFQDN $DomainFQDN -sqlsettings $sqlsettings -ver Prod -CasServerName $casservername -CasSiteCode $cmsitecode
+        $cminstallini = New-CMSettingfile -CMServerType $CMServerType -ServerName $cmOSName -cmsitecode "PRI" -domainFQDN $DomainFQDN -sqlsettings $sqlsettings -ver $ver -CasServerName $casservername -CasSiteCode $cmsitecode
     }
     else {
-        $cminstallini = New-CMSettingfile -CMServerType $CMServerType -ServerName $cmOSName -cmsitecode $cmsitecode -domainFQDN $DomainFQDN -sqlsettings $sqlsettings -ver Prod
+        $cminstallini = New-CMSettingfile -CMServerType $CMServerType -ServerName $cmOSName -cmsitecode $cmsitecode -domainFQDN $DomainFQDN -sqlsettings $sqlsettings -ver $ver
     }
     
     write-logentry -message "CM install ini for $cmname is: $cminstallini" -type information

@@ -77,6 +77,7 @@ class CM {
     [string]$domainnetbios
     [string]$CMServerType
     [string]$CASIPAddress
+    [string]$SCCMVer
     [bool]$Built
     Save ([string] $path) {
         $this | ConvertTo-Json | Out-File $path -Force
@@ -102,6 +103,7 @@ class CM {
         $this.domainnetbios = $settings.domainnetbios
         $this.CMServerType = $settings.CMServerType
         $this.CASIPAddress = $settings.CASIPAddress
+        $this.SCCMVer = $settings.SCCMVer
         $this.Built = $settings.built
     }
 }

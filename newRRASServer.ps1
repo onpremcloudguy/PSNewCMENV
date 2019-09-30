@@ -130,6 +130,9 @@ function new-RRASServer {
             Write-LogEntry -Type Information -Message "Network adaptor renamed to: $($RRASConfig.Network) and Routing configured."
             if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object {$_.name -match "RRAS Lab IP Address Set"}).Result -notmatch "Passed") {Write-LogEntry -Type Error -Message "Lab IP address not added. Build STOPPED";throw "Lab IP address not added"}
         }
+        Invoke-Command -Session $RRASConfigSession -ScriptBlock {Set-LocalUser -Name "Administrator" -PasswordNeverExpires 1}
+        Write-LogEntry -type Information -message "Local admin account set to not expire"
+        Invoke-Command -Session $RRASConfigSession -ScriptBlock { Set-ItemProperty -path HKLM:\SOFTWARE\Microsoft\ServerManager -name DoNotOpenServerManagerAtLogon -Type DWord -value "1" -Force }
         $RRASConfigSession | Remove-PSSession
         Write-LogEntry -Type Information -Message "PowerShell Direct Session for $($RRASConfig.name) has been disconnected"
     }
