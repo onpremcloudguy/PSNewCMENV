@@ -14,7 +14,7 @@ class DC {
     Save ([string] $path) {
         $this | ConvertTo-Json | Out-File $path
     }
-    load ([string] $path){
+    load ([string] $path) {
         $settings = get-content $path | ConvertFrom-Json
         $this.name = $settings.name
         $this.cores = $settings.cores
@@ -82,7 +82,7 @@ class CM {
     Save ([string] $path) {
         $this | ConvertTo-Json | Out-File $path -Force
     }
-    load ([string] $path){
+    load ([string] $path) {
         $settings = get-content $path | ConvertFrom-Json
         $this.name = $settings.name
         $this.cores = $settings.cores
@@ -118,7 +118,7 @@ class env {
         $this | ConvertTo-Json | Out-File $path
     }
 }
-class CA{
+class CA {
     [string]$Name
     [int]$cores
     [int]$ram

@@ -1,20 +1,16 @@
 function Set-LabSettings {
-    #download Adventureworks DB from GitHub and put into the CMServer
-    #   - use CMServer SQL Instance to create dummy users
     #process to create x number of workstation clients
-    #Download and install SSMS
-    #Download and install VSCode
     #process to create x number of dummy clients
     #find a solution to ensure the latest TP is installed
 }
     
 #endregion
 #LAZY MODULE TESTING, WILL BE FIXED ONCE COMPLETED
+#Who am i kidding this is how it will be for ever :)
 foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object { $_.name -notin ("NewENV.Tests.ps1", "labtest.ps1") }) {
     . ".\$psfile"
 }
-    
-    
+
 #region import JSON Settings
 $scriptpath = $PSScriptRoot
 $config = Get-Content "$scriptpath\env.json" -Raw | ConvertFrom-Json

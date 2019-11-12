@@ -7,7 +7,8 @@
             "IPSuffix": 11,
             "ServerType": "PRI",
             "SQLMax": 8,
-            "SQLMin": 4        },
+            "SQLMin": 4
+        },
         {
             "NameSuffix": "DC",
             "Cores": 1,

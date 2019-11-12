@@ -122,57 +122,19 @@ function new-CAServer {
         Invoke-Command -session $casession -ScriptBlock { Get-CAAuthorityInformationAccess | Where-Object { $_.URI -like 'http:*' } | Remove-CAAuthorityInformationAccess -Confirm:$false | Out-Null }
         Invoke-Command -session $casession -ScriptBlock { Add-CAAuthorityInformationAccess -Uri "http://<ServerDNSName>/CertEnroll/<ServerDNSName>_<CAName><CertificateName>.crt" -AddToCertificateAia -Confirm:$false | Out-Null }
         Invoke-Command -session $casession -ScriptBlock { Get-Service -Name certsvc | Restart-Service | Out-Null }
-        Invoke-Command -Session $casession -ScriptBlock { param($env)
-            $ConfigContext = ([ADSI]"LDAP://RootDSE").ConfigurationNamingContext
-            $ADSI = [ADSI]"LDAP://CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext"
-            $certtemplate = [ADSI]"LDAP://CN=KerberosAuthentication,CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext"
-            $certtemplate1 = [ADSI]"LDAP://CN=DomainControllerAuthentication,CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext"
-            $certtemplate2 = [ADSI]"LDAP://CN=Domain Controller Authentication (KDC),CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext"
-            $newcert = $adsi.create("pKICertificateTemplate", "CN=Domain Controller Authentication (KDC)")
-            $newcert.put("distinguishedName", "CN=DomainControllerAuthentication(KDC),CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext")
-            $newcert.put("flags", "131168")
-            $newcert.put("displayName", "Domain Controller Authentication (KDC)")
-            $newcert.put("revision", "100")
-            $newcert.put("pKIDefaultKeySpec", "1")
-            $newcert.setinfo()
-            $newcert.put("pKIMaxIssuingDepth", "0")
-            $newcert.put("pKICriticalExtensions", @("2.5.29.17", "2.5.29.15"))
-            $newcert.put("pKIExtendedKeyUsage", @("1.3.6.1.4.1.311.20.2.2", "1.3.6.1.5.5.7.3.1", "1.3.6.1.5.2.3.5", "1.3.6.1.5.5.7.3.2"))
-            $newcert.put("msPKI-RA-Signature", "0")
-            $newcert.put("msPKI-Enrollment-Flag", "32")
-            $newcert.put("msPKI-Private-Key-Flag", "84213760")
-            $newcert.put("msPKI-Certificate-Name-Flag", "406847488")
-            $newcert.put("msPKI-Minimal-Key-Size", "2048")
-            $newcert.put("msPKI-Template-Schema-Version", "4")
-            $newcert.put("msPKI-Template-Minor-Revision", "3")
-            $newcert.put("msPKI-Cert-Template-OID", "1.3.6.1.4.1.311.21.8.1228481.4920039.15089813.8619623.7815189.17.10339185.7330727")
-            $newcert.put("msPKI-Certificate-Application-Policy", @("1.3.6.1.4.1.311.20.2.2", "1.3.6.1.5.5.7.3.1", "1.3.6.1.5.2.3.5", "1.3.6.1.5.5.7.3.2"))
-            $newcert.put("msPKI-Supersede-Templates", @("DomainController", "DomainControllerAuthentication", "KerberosAuthentication"))
-            $newcert.put("msPKI-RA-Application-Policies", "msPKI-Asymmetric-Algorithm``PZPWSTR``RSA``msPKI-Hash-Algorithm``PZPWSTR``SHA256``msPKI-Key-Usage``DWORD``16777215``msPKI-Symmetric-Algorithm``PZPWSTR``3DES``msPKI-Symmetric-Key-Length``DWORD``168``")
-            $newcert.put("pKIKeyUsage", "160,0")
-            $newcert.pKIExpirationPeriod = $certtemplate.pKIExpirationPeriod
-            $newcert.pKIOverlapPeriod = $certtemplate.pKIOverlapPeriod
-            $newcert.setinfo()
-            $AdObj = New-Object System.Security.Principal.NTAccount("$env\Domain Controllers")
-            $identity = $AdObj.Translate([System.Security.Principal.SecurityIdentifier])
-            $adRights = "ReadProperty, WriteProperty, ExtendedRight"
-            $type = "Allow"
-            $ACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule($identity, $adRights, $type)
-            $newcert.psbase.ObjectSecurity.SetAccessRule($ACE)
-            $newcert.psbase.commitchanges()
-            $p = Start-Process "C:\Windows\System32\certtmpl.msc" -PassThru
-            Start-Sleep 2
-            $p | Stop-Process            
-            Add-CATemplate -name "Domain Controller Authentication (KDC)" -ErrorAction SilentlyContinue -Force
-            
-        }
+        $KDCScriptBlock = [ScriptBlock]::create((get-command new-kdccert).Definition.Replace("`$domain", $domainnetbios))
+        Invoke-Command -Session $casession -ScriptBlock $KDCScriptBlock
+        $CCMWebScriptBlock = [ScriptBlock]::create((get-command new-ccmwebcert).Definition.Replace("`$domain", $domainnetbios))
+        Invoke-Command -Session $casession -ScriptBlock $CCMWebScriptBlock
+        $NDESScriptBlock = [scriptblock]::Create((get-command new-NDESUsercert).Definition.Replace("`$domain", $domainnetbios))
+        Invoke-Command -Session $casession -ScriptBlock $NDESScriptBlock
         Invoke-Command -session $casession -ScriptBlock { Remove-CATemplate DomainControllerAuthentication -Confirm:$false }
         Invoke-Command -session $casession -ScriptBlock { Remove-CATemplate KerberosAuthentication -Confirm:$false }
         Invoke-Command -session $casession -ScriptBlock { Remove-CATemplate DomainController -Confirm:$false }
         Write-LogEntry -Message "Certificate Authority role has been installed on $($cAconfig.name)" -Type Information
-        Invoke-Command -Session $casession -ScriptBlock { param($env)Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object { $_.subject -like "CN=$env*" } | Select-Object -Unique | Export-Certificate -FilePath c:\rootcert.cer } -ArgumentList $CAConfig.network
+        Invoke-Command -Session $casession -ScriptBlock { param($env)Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object { $_.subject -like "CN=$env*" } | Select-Object -Unique | Export-Certificate -FilePath c:\rootcert.cer | out-null } -ArgumentList $CAConfig.network
         Copy-Item -FromSession $casession -Path "C:\rootcert.cer" -Destination "$(split-path $CAConfig.VHDXpath)\rootcert.cer" | Out-Null
-        Invoke-Command -Session $casession -ScriptBlock { param($env)Get-ChildItem -Path Cert:\LocalMachine\CA | Where-Object { $_.subject -like "CN=$env*" } | Select-Object -Unique | Export-Certificate -FilePath c:\intcert.cer } -ArgumentList $CAConfig.network
+        Invoke-Command -Session $casession -ScriptBlock { param($env)Get-ChildItem -Path Cert:\LocalMachine\CA | Where-Object { $_.subject -like "CN=$env*" } | Select-Object -Unique | Export-Certificate -FilePath c:\intcert.cer | out-null } -ArgumentList $CAConfig.network
         Copy-Item -FromSession $casession -Path "C:\intcert.cer" -Destination "$(split-path $CAConfig.VHDXpath)\intcert.cer" | Out-Null
         $casession | Remove-PSSession
 
@@ -181,8 +143,8 @@ function new-CAServer {
         $dcsessiondom = New-PSSession -VMName "$($caconfig.network)DC" -Credential $CAconfig.domainuser
         Copy-Item -ToSession $dcsessiondom -Path $rootcert -Destination "c:\rootcert.cer" | Out-Null
         copy-item -ToSession $dcsessiondom -Path $intCert -Destination "c:\intcert.cer" | Out-Null
-        Invoke-Command -Session $dcsessiondom -ScriptBlock { Import-Certificate -FilePath C:\rootcert.cer -CertStoreLocation Cert:\LocalMachine\Root }
-        Invoke-Command -Session $dcsessiondom -ScriptBlock { Import-Certificate -FilePath C:\intcert.cer -CertStoreLocation Cert:\LocalMachine\CA }
+        Invoke-Command -Session $dcsessiondom -ScriptBlock { Import-Certificate -FilePath C:\rootcert.cer -CertStoreLocation Cert:\LocalMachine\Root | out-null }
+        Invoke-Command -Session $dcsessiondom -ScriptBlock { Import-Certificate -FilePath C:\intcert.cer -CertStoreLocation Cert:\LocalMachine\CA | out-null }
         Invoke-Command -Session $dcsessiondom -ScriptBlock { Get-ChildItem Cert:\LocalMachine\My | Remove-Item }
         Invoke-Command -Session $dcsessiondom -ScriptBlock { certreq -machine -q -enroll "Domain Controller Authentication (KDC)" | Out-Null }
         $dcsessiondom | Remove-PSSession

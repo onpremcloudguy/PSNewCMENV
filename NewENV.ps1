@@ -1,29 +1,28 @@
 function new-ENV {
     param(
-        [Parameter(ParameterSetName='ENVClass')]
+        [Parameter(ParameterSetName = 'ENVClass')]
         [env]
         $ENVConfig,
-        [Parameter(ParameterSetName='NoClass')]
+        [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $vmpath,
-        [Parameter(ParameterSetName='NoClass')]
+        [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $RefVHDX,
-        [Parameter(ParameterSetName='NoClass')]
+        [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $Win16ISOPath,
-        [Parameter(ParameterSetName='NoClass')]
+        [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $Win16Net35Cab,
-        [Parameter(ParameterSetName='NoClass')]
+        [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $network,
-        [Parameter(ParameterSetName='NoClass')]
+        [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $DefaultPwd
     )
-    if(!$PSBoundParameters.ContainsKey('ENVConfig'))
-    {
+    if (!$PSBoundParameters.ContainsKey('ENVConfig')) {
         $ENVConfig = [env]::new()
         $ENVConfig.vmpath = $vmpath
         $ENVConfig.RefVHDX = $RefVHDX
@@ -39,10 +38,9 @@ function new-ENV {
         Write-LogEntry -Type Information -Message "Reference image already exists in: $($ENVConfig.RefVHDX)"
     }
     else {
-        if (!(Test-Path $ENVConfig.vmpath)) {New-Item -ItemType Directory -Force -Path $ENVConfig.vmpath}
+        if (!(Test-Path $ENVConfig.vmpath)) { New-Item -ItemType Directory -Force -Path $ENVConfig.vmpath }
         else {
-            if(!(Test-Path "$($scriptpath)\unattended.xml"))
-            {
+            if (!(Test-Path "$($scriptpath)\unattended.xml")) {
                 New-UnattendXml -admpwd $ENVConfig.DefaultPwd -outfile "$($scriptpath)\unattended.xml"
             }
             Write-LogEntry -Type Information -Message "Reference image doesn't exist, will create it now"
@@ -51,7 +49,7 @@ function new-ENV {
         }
     }
     $TNetwork = Invoke-Pester -TestName "vSwitch" -PassThru -Show None
-    if (($TNetwork.TestResult | Where-Object {$_.name -eq 'Internet VSwitch should exist'}).result -eq 'Failed') {
+    if (($TNetwork.TestResult | Where-Object { $_.name -eq 'Internet VSwitch should exist' }).result -eq 'Failed') {
         Write-LogEntry -Type Information -Message "vSwitch named Internet does not exist"
         $nic = Get-NetAdapter -Physical
         Write-LogEntry -Type Information -Message "Following physical network adaptors found: $($nic.Name -join ",")"
@@ -69,12 +67,12 @@ function new-ENV {
             $oOptions | Out-Host
             $selection = Read-Host -Prompt "Please make a selection"
             Write-LogEntry -Type Information -Message "The following physical network adaptor has been selected for Internet access: $selection"
-            $Selected = $oOptions | Where-Object {$_.Item -eq $selection}
+            $Selected = $oOptions | Where-Object { $_.Item -eq $selection }
             New-VMSwitch -Name 'Internet' -NetAdapterName $selected.name -AllowManagementOS:$true | Out-Null
             Write-LogEntry -Type Information -Message "Internet vSwitch has been created."
         }
     }
-    if (($TNetwork.TestResult | Where-Object {$_.name -eq 'Lab VMSwitch Should exist'}).result -eq 'Failed') {
+    if (($TNetwork.TestResult | Where-Object { $_.name -eq 'Lab VMSwitch Should exist' }).result -eq 'Failed') {
         Write-LogEntry -Type Information -Message "Private vSwitch named $($ENVConfig.network) does not exist"
         New-VMSwitch -Name $ENVConfig.network -SwitchType Private | Out-Null
         Write-LogEntry -Type Information -Message "Private vSwitch named $($ENVConfig.network) has been created."

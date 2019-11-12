@@ -49,7 +49,7 @@ function new-CMSQLsettingsINI {
         'RSSVCACCOUNT'                   = '"NT Service\ReportServer"';
         'RSSVCSTARTUPTYPE'               = '"Automatic"';
     }
-    $SQLHASHINI = @{'OPTIONS' = $SQLHash}
+    $SQLHASHINI = @{'OPTIONS' = $SQLHash }
     $SQLInstallINI = ""
     Foreach ($i in $SQLHASHINI.keys) {
         $SQLInstallINI += "[$i]`r`n"
