@@ -60,16 +60,16 @@ function new-CAServer {
     Write-LogEntry -Message "CA Settings are: $($CAConfig | ConvertTo-Json)" -Type Information
     Write-LogEntry -Message "New CA server name is: $($caconfig.name)" -Type Information
     Write-LogEntry -Message "Path for the VHDX for $($CAConfig.name) is: $($CAConfig.VHDXpath)" -Type Information
-    if (((Invoke-Pester -TestName "CA" -PassThru -show None).TestResult | Where-Object { $_.name -match "CA Should Exist" }).result -notmatch "Passed") {
-        if (((Invoke-Pester -TestName "CA" -PassThru -show None).TestResult | Where-Object { $_.name -match "CA VHDX Should Exist" }).Result -match "Passed") {
-            Write-LogEntry -Message "SA VHDX already exists at path: $($CAConfig.VHDXpath) Please clean up and Rerun. BUILD STOPPED" -Type Error
+    if (!(Invoke-Pester -tagfilter "CAVM" -passthru -output none).result -ne "Passed") {
+        if ((Invoke-Pester -tagfilter "CAVHDX" -passthru -output none).result -eq "Passed") {
+            Write-LogEntry -Message "CA VHDX already exists at path: $($CAConfig.VHDXpath) Please clean up and Rerun. BUILD STOPPED" -Type Error
             throw "CA VHDX Already Exists at path: $($CAConfig.VHDXpath) Please clean up and Rerun."
         }
         else {
             Copy-Item -Path $CAConfig.RefVHDX -Destination $CAConfig.VHDXpath
             Write-LogEntry -Message "Reference VHDX $($CAConfig.RefVHDX) has been copied to: $($CAConfig.VHDXpath)" -Type Information
         }
-        if (((Invoke-Pester -TestName "CA" -PassThru -show None).TestResult | Where-Object { $_.name -match "CA VHDX Should exist" }).Result -notmatch "Passed") {
+        if ((Invoke-Pester -tagfilter "CAVHDX" -passthru -output none).result -eq "Passed") {
             Write-LogEntry -Message "Error creating the VHDX for CA. BUILD STOPPED" -Type Error
             throw "Error Creating the VHDX for CA"
         }
@@ -92,13 +92,13 @@ function new-CAServer {
         if ($null -eq $casessionLA) { throw "Issue with CA Local User Account" }
         $canics = Invoke-Command -session $casessionLA -ScriptBlock { Get-NetAdapter }
         Write-LogEntry -Message "Network Adaptor $($canics -join ",") were found on $($cAconfig.name)" -Type Information
-        if (((Invoke-Pester -TestName "CA" -PassThru -show None).TestResult | Where-Object { $_.name -match "CA IP Address" }).result -notmatch "Passed") {
+        if ((Invoke-Pester -tagfilter "CAIP" -passthru -output none).result -ne "Passed") {
             $IPGateway = "$ipsubnet`1"
             $null = Invoke-Command -session $casessionLA -ScriptBlock { param($t, $i, $g, $d) new-NetIPAddress -InterfaceIndex $t -AddressFamily IPv4 -IPAddress "$i" -PrefixLength 24 -DefaultGateway "$g"; Set-DnsClientServerAddress -ServerAddresses ($d) -InterfaceIndex $t } -ArgumentList $canics.InterfaceIndex, $caconfig.ipaddress, $IPGateway, $CAConfig.DCIP | Out-Null
             Write-LogEntry -Message "IP Address $($CAConfig.IPAddress) has been assigned to $($cAconfig.name)" -Type Information
             start-sleep 120
         }
-        if (((Invoke-Pester -TestName "CA" -PassThru -show None).TestResult | Where-Object { $_.name -match "CA has access to $($CACOnfig.domainFQDN)" }).result -match "Passed") {
+        if ((Invoke-Pester -tagfilter "CADOM" -passthru -output none).result -eq "Passed") {
             while ((Invoke-Command -VMName $caconfig.name -Credential $CAConfig.localadmin { param($i)(test-netconnection "$i`10" -ErrorAction SilentlyContinue).pingsucceeded } -ArgumentList $ipsub -ErrorAction SilentlyContinue) -ne $true -and $stop -ne (get-date)) { Start-Sleep -Seconds 5 }
             Invoke-Command -session $casessionLA -ErrorAction SilentlyContinue -ScriptBlock { param($env, $DU) Clear-DnsClientCache; Add-Computer -DomainName $env -domainCredential $DU -Restart; Start-Sleep -Seconds 15; Restart-Computer -Force -Delay 0 } -ArgumentList $CACOnfig.domainFQDN, $CAConfig.domainuser
             Write-LogEntry -Message "$($cAconfig.name) has been joined to $($CACOnfig.domainFQDN)" -Type Information
@@ -110,7 +110,7 @@ function new-CAServer {
         }
         $casession = New-PSSession -VMName $cAconfig.name -Credential $CAConfig.domainuser
         Write-LogEntry -Message "PowerShell Direct session for user $($CAConfig.domainuser.UserName) has been initiated to $($cAconfig.name)" -Type Information
-        if (((Invoke-Pester -TestName "CA" -PassThru -Show None).TestResult | Where-Object { $_.name -match "CA Feature is installed" }).result -notmatch "Passed") {
+        if ((Invoke-Pester -tagfilter "CAFeatures" -passthru -output none).result -ne "Passed") {
             Invoke-Command -session $casession -ScriptBlock { Add-WindowsFeature -Name ADCS-Cert-Authority, ADCS-Web-Enrollment, Storage-Services, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Stat-Compression, Web-Filtering, Web-Windows-Auth, Web-ASP, Web-ISAPI-Ext, Web-Mgmt-Console, Web-Metabase, NET-Framework-45-Core, NET-WCF-TCP-PortSharing45, RSAT-ADCS-Mgmt, RSAT-Online-Responder, RSAT-AD-PowerShell | Out-Null }
             Write-LogEntry -Message "Cert Authority feature has been enabled on $($caconfig.name)" -Type Information
         }

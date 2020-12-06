@@ -75,3 +75,29 @@ describe "DC" -Tag "DC" {
     }
 }
 #endregion
+
+#region CA
+Describe "CA" -tag "CA" {
+    it 'CA VHDX Should Exist' -tag "CAVHDX" { 
+        get-CAvhdxstate -spath $PSScriptRoot | should -be $true 
+    }
+    it "CA Should Exist" -tag "CAVM" { 
+        get-CAvmexists -spath $PSScriptRoot | should -be 1 
+    }
+    it "CA Should be running" -tag "CARunning" { 
+        get-CAvmrunning -spath $PSScriptRoot | should -be 1 
+    }  
+    it "CA IP Set correctly" -tag "CAIP" { 
+        get-CAVMIP -spath $PSScriptRoot | should -be $true
+    }
+    it 'CA Domain Services Installed' -tag "CAFeatures" {
+        get-CAvmfeature -spath $PSScriptRoot | should -be $true
+    }
+    it 'CA has access to Internet' -tag "CAInternet" {
+        get-CAVMInternet -spath $PSScriptRoot | should -be $true
+    }
+    it 'CA can ping domain' -tag 'CADOM' {
+        Get-CAVMDomain -spath $PSScriptRoot | should -be $true
+    }
+}
+#endregion
