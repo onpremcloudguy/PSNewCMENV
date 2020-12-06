@@ -268,3 +268,93 @@ function Get-DCVMDHCPScope {
     return ($DCVMDHCPScope[0].State -eq "Active")
 }
 #endregion
+
+#region CA
+function Get-CAVHDXstate {
+    param (
+        $spath
+    )
+    $CAsettings = Get-EnvSettings -scriptpath $spath
+    $CAConfig = [CA]::new()
+    $CAconfig.load("$($CAsettings.vmpath)\CAConfig.json")
+    return test-path $CAConfig.VHDXpath
+}
+function Get-CAVMexists {
+    param (
+        $spath
+    )
+    $CAsettings = Get-EnvSettings -scriptpath $spath
+    $CAConfig = [CA]::new()
+    $CAconfig.load("$($CAsettings.vmpath)\CAConfig.json")
+    return (Get-vm -Name $CAConfig.Name -ErrorAction SilentlyContinue).count
+}
+function Get-CAVMrunning {
+    param (
+        $spath
+    )
+    $CAsettings = Get-EnvSettings -scriptpath $spath
+    $CAConfig = [CA]::new()
+    $CAconfig.load("$($CAsettings.vmpath)\CAConfig.json")
+    return (Get-vm -Name $CAConfig.Name -ErrorAction SilentlyContinue | Where-Object { $_.State -match "Running" }).Count
+}
+function Get-CAVMIP {
+    param (
+        $spath
+    )
+    $CAsettings = Get-EnvSettings -scriptpath $spath
+    $CAConfig = [CA]::new()
+    $CAconfig.load("$($CAsettings.vmpath)\CAConfig.json")
+    $CAVMIP = $false
+    if ((Get-CAVMexists -spath $spath) -and (Get-CAVMrunning -spath $spath)) {
+        $tCASession = New-PSSession -VMName $CAConfig.Name -Credential $CAsettings.domuser
+        $CAVMIP = (Invoke-Command -Session $tCASession -ScriptBlock { (Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress })
+        $tCASession | Remove-PSSession
+    }
+    return ($CAvmip -eq $CAconfig.IPAddress)
+}
+function Get-CAVMFeature {
+    param (
+        $spath
+    )
+    $CAsettings = Get-EnvSettings -scriptpath $spath
+    $CAConfig = [CA]::new()
+    $CAconfig.load("$($CAsettings.vmpath)\CAConfig.json")
+    if ((Get-CAVMexists -spath $spath) -and (Get-CAVMrunning -spath $spath)) {
+        $tCASession = New-PSSession -VMName $CAConfig.Name -Credential $CAsettings.domuser
+        $CAFeat = (Invoke-Command -Session $TCASession -ScriptBlock { (Get-WindowsFeature -name Adcs-Cert-Authority).installstate }).value
+        $tCASession | Remove-PSSession
+    }
+    return ($CAFeat -eq "Installed")
+}
+function Get-CAVMInternet {
+    param (
+        $spath
+    )
+    $CAsettings = Get-EnvSettings -scriptpath $spath
+    $CAConfig = [CA]::new()
+    $CAconfig.load("$($CAsettings.vmpath)\CAConfig.json")
+    $CAvmip = $false
+    if ((Get-CAVMexists -spath $spath) -and (Get-CAVMrunning -spath $spath)) {
+        $tCASession = New-PSSession -VMName $CAConfig.Name -Credential $CAsettings.domuser
+        $CAVMIP = (Invoke-Command -Session $tCASession -ScriptBlock { test-netconnection "8.8.8.8" -WarningAction SilentlyContinue -ErrorAction SilentlyContinue }).PingSucceeded
+        $tCASession | Remove-PSSession
+    }
+    return $CAVMIP
+}
+function Get-CAVMDomain {
+    param (
+        $spath
+    )
+    $CAsettings = Get-EnvSettings -scriptpath $spath
+    $CAConfig = [CA]::new()
+    $CAconfig.load("$($CAsettings.vmpath)\CAConfig.json")
+    $CAvmDom = $false
+    if ((Get-CAVMexists -spath $spath) -and (Get-CAVMrunning -spath $spath)) {
+        $tCASession = New-PSSession -VMName $CAConfig.Name -Credential $CAsettings.domuser
+        $CAvmDom = (Invoke-Command -Session $TCASession -ScriptBlock { param($d)Test-NetConnection $d -erroraction SilentlyContinue -WarningAction SilentlyContinue } -ArgumentList $CAConfig.domainFQDN ).PingSucceeded
+        $tCASession | Remove-PSSession
+    }
+    return $CAvmDom
+}
+
+#endregion
