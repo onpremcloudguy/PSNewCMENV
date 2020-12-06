@@ -60,9 +60,9 @@ function new-DC {
     Write-LogEntry -Message "DC Settings are: $($DCConfig | ConvertTo-Json)" -Type Information
     Write-LogEntry -Message "VM for DC will be named: $($dcconfig.name)" -type Information
     Write-LogEntry -Message "Path for the VHDX for $($dcconfig.name) is: $($dcconfig.VHDXpath)" -type information
-    if (!((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC Should Exist" }).result -notmatch "Passed") {
+    if (!(Invoke-Pester -tagfilter "DCVM" -passthru -output none).result -ne "Passed") {
         write-logentry -message "DC for env: $($DCConfig.Network) doesn't exist, creating now" -Type Information
-        if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC VHDX Should Exist" }).Result -match "Passed") {
+        if ((Invoke-Pester -tagfilter "DCVHDX" -passthru -output none).result -eq "Passed") {
             Write-LogEntry -Message "DC VHDX Already Exists at path: $($dcconfig.VHDXpath) Please clean up and Rerun." -Type Error
             throw "DC VHDX Already Exists at path: $($dcconfig.VHDXpath) Please clean up and Rerun."
         }
@@ -70,7 +70,7 @@ function new-DC {
             Copy-Item -Path $dcconfig.RefVHDX -Destination $dcconfig.VHDXpath
             Write-LogEntry -Message "Reference VHDX: $($dcconfig.refvhdx) has been copied to: $($dcconfig.VHDXpath)" -Type Information
         }
-        if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC VHDX Should exist" }).Result -notmatch "Passed") {
+        if ((Invoke-Pester -tagfilter "DCVHDX" -passthru -output none).result -eq "Passed") {
             Write-LogEntry -Message "Error Creating the VHDX for $($dcconfig.name). Build STOPPED" -Type Error 
             throw "Error Creating the VHDX for DC"
         }
@@ -93,7 +93,9 @@ function new-DC {
         Write-LogEntry -Message "PowerShell Direct session for $($dcconfig.localadmin.UserName) has been initated with DC Service named: $($dcconfig.name)" -Type Information
         $dcnics = Invoke-Command -VMName $dcconfig.name -Credential $dcconfig.localadmin -ScriptBlock { Get-NetAdapter }
         Write-LogEntry -Message "The following network adaptors $($dcnics -join ",") have been found on: $($dcconfig.name)" -Type Information
-        if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC IP Address" }).result -notmatch "Passed") {
+        #TODO: complete the rest of the Pester queries
+        #if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC IP Address" }).result -notmatch "Passed") {
+        if ((Invoke-Pester -tagfilter "DCIP" -passthru -output none).result -ne "Passed") {
             $IPGateway = "$ipsubnet`1"
             Invoke-Command -Session $dcsession -ScriptBlock { param($t, $i, $g) new-NetIPAddress -InterfaceIndex $t -AddressFamily IPv4 -IPAddress "$i" -PrefixLength 24 -DefaultGateway "$g"; Set-DnsClientServerAddress -ServerAddresses ('8.8.8.8') -InterfaceIndex $t } -ArgumentList $dcnics.InterfaceIndex, $dcconfig.ipaddress, $IPGateway | Out-Null
             Write-LogEntry -Message "IP Address $($dcconfig.IPAddress) has been assigned to $($dcconfig.name)" -Type Information
@@ -113,7 +115,7 @@ function new-DC {
             (Invoke-Command -VMName $dcconfig.name -Credential $dcconfig.domainuser { Get-WmiObject -Class Win32_Service -Filter 'name="adws"' }).state
             Start-Sleep -Seconds 5
         }
-        while (((invoke-pester -testname "DC" -passthru -show none).testresult | where-object { $_.name -match "DC SCCM Servers Group" }).result -notmatch "Passed") {
+        while (((Invoke-Pester -testname "DC" -passthru -show none).testresult | where-object { $_.name -match "DC SCCM Servers Group" }).result -notmatch "Passed") {
             $dcsessiondom = New-PSSession -VMName $dcconfig.name -Credential $dcconfig.domainuser -ErrorAction SilentlyContinue
             #Write-LogEntry -Message "PowerShell Direct session for $($dcconfig.domainuser.UserName) has been initated with DC Service named: $($dcconfig.name)" -Type Information
             $null = Invoke-Command -Session $dcsessiondom -ScriptBlock { Import-Module ActiveDirectory -ErrorAction SilentlyContinue -WarningAction SilentlyContinue; New-ADGroup -Name "SCCM Servers" -GroupScope 1 -ErrorAction SilentlyContinue -WarningAction SilentlyContinue }
@@ -135,5 +137,5 @@ function new-DC {
         $dcsessiondom | Remove-PSSession
     }
     Write-LogEntry -Message "DC Server Completed: $(Get-Date)" -Type Information
-    invoke-pester -TestName "DC"
+    Invoke-Pester -TestName "DC"
 }

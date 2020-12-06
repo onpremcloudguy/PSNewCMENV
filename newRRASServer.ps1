@@ -45,17 +45,17 @@ function new-RRASServer {
     }
     Write-LogEntry -Message "RRAS Server started $(Get-Date)" -type Information
     Write-LogEntry -Message "RRAS Settings are: $($RRASConfig | ConvertTo-Json)" -Type Information
-    if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "RRAS Server Should exist" }).Result -notmatch "Passed") {
+    if ((Invoke-Pester -TagFilter "RRASVM" -PassThru -Output None).result -ne "Passed") {
         Write-LogEntry -Type Information -Message "Path for the VHDX for RRAS is: $($RRASConfig.VHDXpath)"
-        if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "VHDX Should exist" }).Result -match "Passed") {
-            Write-LogEntry -Type Error -Message "RRAS VHDX Already Exists at path: $($RRASConfig.VHDXpath) Please clean up and Rerun. Build STOPPED" 
+        if ((Invoke-Pester -TagFilter "RRASVHDX" -PassThru -Output None).result -eq "Passed") {
+            Write-LogEntry -Type Error -Message "RRAS VHDX Already Exists at path: $($RRASConfig.VHDXpath) Please clean up and Rerun. Build STOPPED"
             throw "RRAS VHDX Already Exists at path: $($RRASConfig.VHDXpath) Please clean up and Rerun."
         }
         else {
             Copy-Item -Path $RRASConfig.RefVHDX -Destination $RRASConfig.VHDXpath
             Write-LogEntry -Type Information -Message "Reference VHDX: $($RRASConfig.RefVHDX) has been copied to: $($RRASConfig.VHDXpath)"
         }
-        if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "VHDX Should exist" }).Result -notmatch "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASVHDX" -PassThru -Output None).result -eq "Passed") {
             Write-LogEntry -Type Error -Message "Error Creating the VHDX for RRAS. Build STOPPED"
             throw "Error Creating the VHDX for RRAS"
         }
@@ -68,7 +68,11 @@ function new-RRASServer {
                 set-vm -Name $RRASConfig.name -CheckpointType Disabled
             }
             Write-LogEntry -Type Information -Message "RRAS Server has been created"
-            if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "RRAS Server Should exist" }).Result -notmatch "Passed") { Write-LogEntry -Type Error -message "Error Creating the VHDX for RRAS"; throw "Error Creating the VHDX for RRAS" }
+            if ((Invoke-Pester -TagFilter "RRASVM" -PassThru -Output None).result -ne "Passed")
+            {
+                Write-LogEntry -Type Error -message "Error Creating the VHDX for RRAS";
+                throw "Error Creating the VHDX for RRAS"
+            }
         }
         start-vm -Name $RRASConfig.name
         Write-LogEntry -Type Information -Message "RRAS Server named $($RRASConfig.Name) has been started"
@@ -77,7 +81,7 @@ function new-RRASServer {
         while ((Invoke-Command -VMName $RRASConfig.name -Credential $RRASConfig.localadmin { "Test" } -ErrorAction SilentlyContinue) -ne "Test") { Start-Sleep -Seconds 5 }
         $RRASConfigSession = New-PSSession -VMName $RRASConfig.name -Credential $RRASConfig.localadmin
         Write-LogEntry -Type Information -Message "PowerShell Direct session for $($RRASConfig.localadmin.UserName) has been initated with RRAS Server named: $($RRASConfig.name)"
-        if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "RRAS Routing Installed" }).Result -match "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASVPN" -PassThru -Output None).result -ne "Passed") {
             Write-Verbose "RRAS Routing Already installed"
         }
         else {
@@ -88,7 +92,7 @@ function new-RRASServer {
         while ((Invoke-Command -VMName $RRASConfig.name -Credential $RRASConfig.localadmin { "Test" } -ErrorAction SilentlyContinue) -ne "Test") { Start-Sleep -Seconds 5 }
         $RRASConfigSession = New-PSSession -VMName $RRASConfig.name -Credential $RRASConfig.localadmin
         Write-LogEntry -Type Information -Message "PowerShell Direct session for $($RRASConfig.localadmin.UserName) has been initated with RRAS Server named: $($RRASConfig.name)"
-        if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "RRAS External NIC Renamed" }).Result -match "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASExtNIC" -PassThru -Output None).result -ne "Passed") {
             Write-Verbose "RRAS NIC Already Named external"
         }
         else {
@@ -108,7 +112,7 @@ function new-RRASServer {
     }
 
     if ((Get-VMNetworkAdapter -VMName $RRASConfig.name | Where-Object { $_.switchname -eq $RRASConfig.network }).count -eq 0) {
-        if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "RRAS Lab IP Address Set" }).Result -match "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASLabIP" -PassThru -Output None).result -ne "Passed") {
             Write-Verbose "RRAS NIC Already Named $($RRASConfig.Network)"
         }
         else {
@@ -127,7 +131,11 @@ function new-RRASServer {
             Invoke-Command -Session $RRASConfigSession -ScriptBlock { param($n, $t)Get-NetAdapter -InterfaceIndex $n | rename-netadapter -newname $t } -ArgumentList $t.InterfaceIndex, $RRASConfig.Network
             Invoke-Command -Session $RRASConfigSession -ScriptBlock { param($n)get-service -name "remoteaccess" | Restart-Service -WarningAction SilentlyContinue; netsh routing ip nat add interface $n } -ArgumentList $RRASConfig.Network
             Write-LogEntry -Type Information -Message "Network adaptor renamed to: $($RRASConfig.Network) and Routing configured."
-            if (((Invoke-Pester -TestName "RRAS" -PassThru -show None).TestResult | Where-Object { $_.name -match "RRAS Lab IP Address Set" }).Result -notmatch "Passed") { Write-LogEntry -Type Error -Message "Lab IP address not added. Build STOPPED"; throw "Lab IP address not added" }
+            if ((Invoke-Pester -TagFilter "RRASLabIP" -PassThru -Output None).result -ne "Passed")
+            {
+                Write-LogEntry -Type Error -Message "Lab IP address not added. Build STOPPED";
+                throw "Lab IP address not added"
+            }
         }
         Invoke-Command -Session $RRASConfigSession -ScriptBlock { Set-LocalUser -Name "Administrator" -PasswordNeverExpires 1 }
         Write-LogEntry -type Information -message "Local admin account set to not expire"

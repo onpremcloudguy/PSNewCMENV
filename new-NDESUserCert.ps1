@@ -1,10 +1,11 @@
 function new-NDESUsercert {
     param(
-        $Domain
+        $Domain,
+        $ndessvc
     )
     $ConfigContext = ([ADSI]"LDAP://RootDSE").ConfigurationNamingContext
     $ADSI = [ADSI]"LDAP://CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext"
-    $newcert = $adsi.create("pKICertificateTemplate", "CN=NDES User")
+    $newcert = $adsi.create("pKICertificateTemplate", "CN=NDESUser")
     $newcert.put("distinguishedName", "CN=NDESUser,CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext")
     $newcert.put("flags", "131642")
     $newcert.put("displayName", "NDES User")
@@ -32,9 +33,15 @@ function new-NDESUsercert {
     $type = "Allow"
     $ACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule($identity, $adRights, $type)
     $newcert.psbase.ObjectSecurity.SetAccessRule($ACE)
+    $AdObj = New-Object System.Security.Principal.NTAccount("$domain\$ndessvc")
+    $identity = $AdObj.Translate([System.Security.Principal.SecurityIdentifier])
+    $adRights = "ReadProperty, WriteProperty, ExtendedRight,GenericExecute"
+    $type = "Allow"
+    $ACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule($identity, $adRights, $type)
+    $newcert.psbase.ObjectSecurity.SetAccessRule($ACE)
     $newcert.psbase.commitchanges()
     $p = Start-Process "C:\Windows\System32\certtmpl.msc" -PassThru
     Start-Sleep 2
     $p | Stop-Process            
-    Add-CATemplate -name "NDES User" -ErrorAction SilentlyContinue -Force
+    Add-CATemplate -name "NDESUser" -ErrorAction SilentlyContinue -Force
 }

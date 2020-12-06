@@ -1,10 +1,11 @@
 function new-NDESClientcert {
     param(
-        $Domain
+        $Domain,
+        $ndessvc
     )
     $ConfigContext = ([ADSI]"LDAP://RootDSE").ConfigurationNamingContext
     $ADSI = [ADSI]"LDAP://CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext"
-    $newcert = $adsi.create("pKICertificateTemplate", "CN=ConfigMgr Web Server")
+    $newcert = $adsi.create("pKICertificateTemplate", "CN=ConfigMgrWebServer")
     $newcert.put("distinguishedName", "CN=ConfigMgrWebServer,CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigContext")
     $newcert.put("flags", "131649")
     $newcert.put("displayName", "ConfigMgr Web Server")
@@ -32,9 +33,15 @@ function new-NDESClientcert {
     $type = "Allow"
     $ACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule($identity, $adRights, $type)
     $newcert.psbase.ObjectSecurity.SetAccessRule($ACE)
+    $AdObj = New-Object System.Security.Principal.NTAccount("$domain\$ndessvc")
+    $identity = $AdObj.Translate([System.Security.Principal.SecurityIdentifier])
+    $adRights = "ReadProperty, WriteProperty, ExtendedRight,GenericExecute"
+    $type = "Allow"
+    $ACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule($identity, $adRights, $type)
+    $newcert.psbase.ObjectSecurity.SetAccessRule($ACE)
     $newcert.psbase.commitchanges()
     $p = Start-Process "C:\Windows\System32\certtmpl.msc" -PassThru
     Start-Sleep 2
     $p | Stop-Process            
-    Add-CATemplate -name "ConfigMgr Web Server" -ErrorAction SilentlyContinue -Force
+    Add-CATemplate -name "ConfigMgrWebServer" -ErrorAction SilentlyContinue -Force
 }

@@ -111,9 +111,12 @@ function new-CAServer {
         $casession = New-PSSession -VMName $cAconfig.name -Credential $CAConfig.domainuser
         Write-LogEntry -Message "PowerShell Direct session for user $($CAConfig.domainuser.UserName) has been initiated to $($cAconfig.name)" -Type Information
         if (((Invoke-Pester -TestName "CA" -PassThru -Show None).TestResult | Where-Object { $_.name -match "CA Feature is installed" }).result -notmatch "Passed") {
-            Invoke-Command -session $casession -ScriptBlock { Add-WindowsFeature -Name ADCS-Cert-Authority, ADCS-Web-Enrollment, Storage-Services, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Stat-Compression, Web-Filtering, Web-Windows-Auth, Web-ASP, Web-ISAPI-Ext, Web-Mgmt-Console, Web-Metabase, NET-Framework-45-Core, NET-WCF-TCP-PortSharing45, RSAT-ADCS-Mgmt, RSAT-Online-Responder | Out-Null }
+            Invoke-Command -session $casession -ScriptBlock { Add-WindowsFeature -Name ADCS-Cert-Authority, ADCS-Web-Enrollment, Storage-Services, Web-Default-Doc, Web-Dir-Browsing, Web-Http-Errors, Web-Static-Content, Web-Http-Redirect, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Stat-Compression, Web-Filtering, Web-Windows-Auth, Web-ASP, Web-ISAPI-Ext, Web-Mgmt-Console, Web-Metabase, NET-Framework-45-Core, NET-WCF-TCP-PortSharing45, RSAT-ADCS-Mgmt, RSAT-Online-Responder, RSAT-AD-PowerShell | Out-Null }
             Write-LogEntry -Message "Cert Authority feature has been enabled on $($caconfig.name)" -Type Information
         }
+        # add new service account
+        # grant service account permissions to the CA to manage certs
+        
         Invoke-Command -Session $casession -ScriptBlock { Set-ItemProperty -path HKLM:\SOFTWARE\Microsoft\ServerManager -name DoNotOpenServerManagerAtLogon -Type DWord -value "1" -Force }
         Invoke-Command -session $casession -ScriptBlock { param($env)Install-AdcsCertificationAuthority -CAType EnterpriseRootCa -CryptoProviderName "RSA#Microsoft Software Key Storage Provider" -KeyLength 2048 -HashAlgorithmName SHA256 -validityPeriod Months -validityPeriodUnits 6 -CACommonName "$($env)-root" -confirm:$false | Out-Null } -ArgumentList $CAConfig.network
         Invoke-Command -session $casession -ScriptBlock { Install-AdcsWebEnrollment -Confirm:$false | Out-Null }
@@ -122,11 +125,13 @@ function new-CAServer {
         Invoke-Command -session $casession -ScriptBlock { Get-CAAuthorityInformationAccess | Where-Object { $_.URI -like 'http:*' } | Remove-CAAuthorityInformationAccess -Confirm:$false | Out-Null }
         Invoke-Command -session $casession -ScriptBlock { Add-CAAuthorityInformationAccess -Uri "http://<ServerDNSName>/CertEnroll/<ServerDNSName>_<CAName><CertificateName>.crt" -AddToCertificateAia -Confirm:$false | Out-Null }
         Invoke-Command -session $casession -ScriptBlock { Get-Service -Name certsvc | Restart-Service | Out-Null }
+        $ndessvcuser = "ndessvc"
+        
         $KDCScriptBlock = [ScriptBlock]::create((get-command new-kdccert).Definition.Replace("`$domain", $domainnetbios))
         Invoke-Command -Session $casession -ScriptBlock $KDCScriptBlock
-        $CCMWebScriptBlock = [ScriptBlock]::create((get-command new-ccmwebcert).Definition.Replace("`$domain", $domainnetbios))
+        $CCMWebScriptBlock = [ScriptBlock]::create((get-command new-ccmwebcert).Definition.Replace("`$domain", $domainnetbios).Replace("`$ndessvc",$ndessvcuser))
         Invoke-Command -Session $casession -ScriptBlock $CCMWebScriptBlock
-        $NDESScriptBlock = [scriptblock]::Create((get-command new-NDESUsercert).Definition.Replace("`$domain", $domainnetbios))
+        $NDESScriptBlock = [scriptblock]::Create((get-command new-NDESUsercert).Definition.Replace("`$domain", $domainnetbios).Replace("`$ndessvc",$ndessvcuser))
         Invoke-Command -Session $casession -ScriptBlock $NDESScriptBlock
         Invoke-Command -session $casession -ScriptBlock { Remove-CATemplate DomainControllerAuthentication -Confirm:$false }
         Invoke-Command -session $casession -ScriptBlock { Remove-CATemplate KerberosAuthentication -Confirm:$false }

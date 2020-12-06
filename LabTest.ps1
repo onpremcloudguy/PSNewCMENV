@@ -190,10 +190,10 @@ $CAConfig.save("$vmpath\CAConfig.json")
 #endregion
 
 #region create VMs
-new-env -ENVConfig $envconfig
-new-RRASServer -RRASConfig $RRASConfig
+#new-env -ENVConfig $envconfig
+#new-RRASServer -RRASConfig $RRASConfig
 new-DC -DCConfig $DCConfig
-New-CAServer -CAConfig $CAConfig
+#New-CAServer -CAConfig $CAConfig
 if ($SCCMENVType -eq "PRI") {
     new-SCCMServer -CMConfig $CMConfig
 }
