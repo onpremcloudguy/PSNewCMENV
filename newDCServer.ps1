@@ -8,37 +8,37 @@ function new-DC {
         $VHDXpath,
         [Parameter(ParameterSetName = 'NoClass')]
         [pscredential]
-        $localadmin,
+        $LocalAdmin,
         [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $Network,
         [Parameter(ParameterSetName = 'NoClass')]
         [string]
-        $ipAddress,
+        $IPAddress,
         [Parameter(ParameterSetName = 'NoClass')]
         [string]
         $DomainFQDN,
         [Parameter(ParameterSetName = 'NoClass')]
         [string]
-        $admpwd,
+        $ADMPwd,
         [Parameter(ParameterSetName = 'NoClass')]
         [pscredential]
-        $domainuser,
+        $DomainUser,
         [parameter(ParameterSetName = 'NoClass', Mandatory = $false)]
         [switch]
-        $vmSnapshotenabled,
+        $VMSnapshotEnabled,
         [Parameter(ParameterSetName = 'NoClass')]
         [int]
-        $cores,
+        $Cores,
         [Parameter(ParameterSetName = 'NoClass')]
         [int]
-        $ram,
+        $RAM,
         [Parameter(ParameterSetName = 'NoClass')]
         [string]
-        $name,
+        $Name,
         [Parameter(ParameterSetName = 'NoClass')]
         [string]
-        $refvhdx
+        $RefVHDX
     )
     if (!$PSBoundParameters.ContainsKey('DCConfig')) {
         $DCconfig = [DC]::new()
@@ -93,18 +93,16 @@ function new-DC {
         Write-LogEntry -Message "PowerShell Direct session for $($dcconfig.localadmin.UserName) has been initated with DC Service named: $($dcconfig.name)" -Type Information
         $dcnics = Invoke-Command -VMName $dcconfig.name -Credential $dcconfig.localadmin -ScriptBlock { Get-NetAdapter }
         Write-LogEntry -Message "The following network adaptors $($dcnics -join ",") have been found on: $($dcconfig.name)" -Type Information
-        #TODO: complete the rest of the Pester queries
-        #if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC IP Address" }).result -notmatch "Passed") {
         if ((Invoke-Pester -tagfilter "DCIP" -passthru -output none).result -ne "Passed") {
             $IPGateway = "$ipsubnet`1"
             Invoke-Command -Session $dcsession -ScriptBlock { param($t, $i, $g) new-NetIPAddress -InterfaceIndex $t -AddressFamily IPv4 -IPAddress "$i" -PrefixLength 24 -DefaultGateway "$g"; Set-DnsClientServerAddress -ServerAddresses ('8.8.8.8') -InterfaceIndex $t } -ArgumentList $dcnics.InterfaceIndex, $dcconfig.ipaddress, $IPGateway | Out-Null
             Write-LogEntry -Message "IP Address $($dcconfig.IPAddress) has been assigned to $($dcconfig.name)" -Type Information
         }
-        if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC Domain Services Installed" }).result -notmatch "Passed") {
+        if ((Invoke-Pester -tagfilter "DCFeatures" -passthru -output none).result -ne "Passed") {
             Invoke-Command -Session $dcsession -ScriptBlock { Install-WindowsFeature -Name DHCP, DNS, AD-Domain-Services } | Out-Null
             Write-LogEntry -Message "Domain Services roles have been enabled on $($dcconfig.name)" -Type Information
         }
-        if (((Invoke-Pester -TestName "DC" -PassThru -show None).TestResult | Where-Object { $_.name -match "DC Promoted" }).result -notmatch "Passed") {
+        if ((Invoke-Pester -tagfilter "DCPromo" -passthru -output none).result -ne "Passed") {
             Invoke-Command -Session $dcsession -ScriptBlock { param($d, $p)Install-ADDSForest -DomainName $d -SafeModeAdministratorPassword (ConvertTo-SecureString -string $p -asplaintext -Force) -confirm:$false -WarningAction SilentlyContinue } -ArgumentList $dcconfig.DomainFQDN, $dcconfig.admpwd | out-null
             Write-LogEntry -Message "Forrest $($dcconfig.DomainFQDN) has been promoted on $($dcconfig.name)" -Type Information
         }
@@ -115,7 +113,7 @@ function new-DC {
             (Invoke-Command -VMName $dcconfig.name -Credential $dcconfig.domainuser { Get-WmiObject -Class Win32_Service -Filter 'name="adws"' }).state
             Start-Sleep -Seconds 5
         }
-        while (((Invoke-Pester -testname "DC" -passthru -show none).testresult | where-object { $_.name -match "DC SCCM Servers Group" }).result -notmatch "Passed") {
+        while ((Invoke-Pester -TagFilter "DCCM" -PassThru -Output None).result -ne "Passed") {
             $dcsessiondom = New-PSSession -VMName $dcconfig.name -Credential $dcconfig.domainuser -ErrorAction SilentlyContinue
             #Write-LogEntry -Message "PowerShell Direct session for $($dcconfig.domainuser.UserName) has been initated with DC Service named: $($dcconfig.name)" -Type Information
             $null = Invoke-Command -Session $dcsessiondom -ScriptBlock { Import-Module ActiveDirectory -ErrorAction SilentlyContinue -WarningAction SilentlyContinue; New-ADGroup -Name "SCCM Servers" -GroupScope 1 -ErrorAction SilentlyContinue -WarningAction SilentlyContinue }

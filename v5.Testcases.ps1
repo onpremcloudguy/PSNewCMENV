@@ -203,7 +203,7 @@ function Get-DCVMIP {
     $DCVMIP = $false
     if ((Get-DCVMexists -spath $spath) -and (Get-DCVMrunning -spath $spath)) {
         $tDCSession = New-PSSession -VMName $DCConfig.Name -Credential $DCsettings.domuser
-        $DCVMIP = (Invoke-Command -Session $tDCSession -ScriptBlock { (Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress })
+        $DCVMIP = Invoke-Command -Session $tDCSession -ScriptBlock { (Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Manual -ErrorAction SilentlyContinue).ipaddress }
         $tDCSession | Remove-PSSession
     }
     return ($dcvmip -eq $DCconfig.IPAddress)
@@ -262,9 +262,38 @@ function Get-DCVMDHCPScope {
     $DCVMDHCPScope = $false
     if ((Get-DCVMexists -spath $spath) -and (Get-DCVMrunning -spath $spath)) {
         $tDCSession = New-PSSession -VMName $DCConfig.Name -Credential $DCsettings.domuser
-        $DCVMDHCPScope = (Invoke-Command -Session $TDCSession -ScriptBlock { if (Get-command Get-DhcpServerv4Scope -ErrorAction SilentlyContinue) { Get-DhcpServerv4Scope -ErrorAction SilentlyContinue -warningaction SilentlyContinue } })
+        $DCVMDHCPScope = Invoke-Command -Session $TDCSession -ScriptBlock {
+            if (Get-command Get-DhcpServerv4Scope -ErrorAction SilentlyContinue) {
+                Get-DhcpServerv4Scope -ErrorAction SilentlyContinue -warningaction SilentlyContinue
+            }
+        }
         $tDCSession | Remove-PSSession
     }
     return ($DCVMDHCPScope[0].State -eq "Active")
+}
+function Get-DCVMCMGroupExists {
+    [cmdletbinding()]
+    param (
+        $spath
+    )
+    $DCsettings = Get-EnvSettings -scriptpath $spath
+    $DCConfig = [DC]::new()
+    $DCconfig.load("$($DCsettings.vmpath)\DCConfig.json")
+    $DCVMCMGroupExists = $false
+    if ((Get-DCVMexists -spath $spath) -and (Get-DCVMrunning -spath $spath)) {
+        $tDCSession = New-PSSession -VMName $DCConfig.Name -Credential $DCsettings.domuser
+        $DCVMCMGroupExists = Invoke-Command -Session $TDCSession -ScriptBlock {
+            if (Get-Command Get-ADGroup -ErrorAction SilentlyContinue -WarningAction SilentlyContinue) {
+                Get-ADGroup -Filter "name -eq 'SCCM Servers'" -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+            }
+        }
+        $tDCSession | Remove-PSSession
+    }
+    if ($DCVMCMGroupExists | Where-Object {$_.Name -eq 'SCCM Servers'}) {
+        return $true
+    }
+    else {
+        return $false
+    }
 }
 #endregion
