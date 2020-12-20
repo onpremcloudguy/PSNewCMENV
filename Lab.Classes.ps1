@@ -157,3 +157,12 @@ class CASC {
 class WKS {
     
 }
+
+class testframes {
+    [pscredential]$localadmin
+    [pscredential]$domuser
+    [string]$vmpath
+    [string]$swname
+    [string]$DomainFQDN
+    [string]$RefVHDX
+}

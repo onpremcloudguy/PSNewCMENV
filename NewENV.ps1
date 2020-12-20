@@ -33,8 +33,7 @@ function new-ENV {
     }
     Write-LogEntry -Type Information -Message "Creating the base requirements for Lab Environment"
     Write-LogEntry -Type Information -Message "ENV Settings are: $($envconfig | ConvertTo-Json)"
-    $TREFVHDX = Invoke-Pester -TestName "Reference-VHDX" -PassThru -Show Passed
-    if ($TREFVHDX.PassedCount -eq 1) {
+    if ((Invoke-Pester -TagFilter "RefVHDX" -PassThru -Output None).result -eq "Passed") {
         Write-LogEntry -Type Information -Message "Reference image already exists in: $($ENVConfig.RefVHDX)"
     }
     else {
@@ -48,8 +47,7 @@ function new-ENV {
             Write-LogEntry -Type Information -Message "Reference image has been created in: $($ENVConfig.RefVHDX)"
         }
     }
-    $TNetwork = Invoke-Pester -TestName "vSwitch" -PassThru -Show None
-    if (($TNetwork.TestResult | Where-Object { $_.name -eq 'Internet VSwitch should exist' }).result -eq 'Failed') {
+    if ((invoke-pester -TagFilter "ExternalSwitch" -PassThru -Output None).result -ne 'Passed') {
         Write-LogEntry -Type Information -Message "vSwitch named Internet does not exist"
         $nic = Get-NetAdapter -Physical
         Write-LogEntry -Type Information -Message "Following physical network adaptors found: $($nic.Name -join ",")"
@@ -72,7 +70,7 @@ function new-ENV {
             Write-LogEntry -Type Information -Message "Internet vSwitch has been created."
         }
     }
-    if (($TNetwork.TestResult | Where-Object { $_.name -eq 'Lab VMSwitch Should exist' }).result -eq 'Failed') {
+    if ((invoke-pester -TagFilter "LabSwitch" -PassThru -Output None).result -ne 'Passed') {
         Write-LogEntry -Type Information -Message "Private vSwitch named $($ENVConfig.network) does not exist"
         New-VMSwitch -Name $ENVConfig.network -SwitchType Private | Out-Null
         Write-LogEntry -Type Information -Message "Private vSwitch named $($ENVConfig.network) has been created."
