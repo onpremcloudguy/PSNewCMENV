@@ -69,7 +69,7 @@ function new-CAServer {
             Copy-Item -Path $CAConfig.RefVHDX -Destination $CAConfig.VHDXpath
             Write-LogEntry -Message "Reference VHDX $($CAConfig.RefVHDX) has been copied to: $($CAConfig.VHDXpath)" -Type Information
         }
-        if ((Invoke-Pester -tagfilter "CAVHDX" -passthru -output none).result -eq "Passed") {
+        if ((Invoke-Pester -tagfilter "CAVHDX" -passthru -output none).result -ne "Passed") {
             Write-LogEntry -Message "Error creating the VHDX for CA. BUILD STOPPED" -Type Error
             throw "Error Creating the VHDX for CA"
         }
@@ -154,7 +154,7 @@ function new-CAServer {
         Invoke-Command -Session $dcsessiondom -ScriptBlock { certreq -machine -q -enroll "Domain Controller Authentication (KDC)" | Out-Null }
         $dcsessiondom | Remove-PSSession
         Write-LogEntry -Message "PowerShell Direct session for $($CAConfig.domainuser.UserName) has been disconnected from $($cAconfig.name)" -Type Information
-        Invoke-Pester -TestName "CA"
+        Invoke-Pester -TagFilter "CA" -Output Detailed
         Write-LogEntry -Message "Installation of CA Server named $($cAconfig.name) is completed" -Type Information
     }
 }

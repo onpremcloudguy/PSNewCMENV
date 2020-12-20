@@ -106,13 +106,13 @@ function new-RRASServer {
         Write-LogEntry -Type Information -Message "PowerShell Direct Session for $($RRASConfig.name) has been disconnected"
     }
     else {
-        Start-VM $RRASConfig.name
+        Start-VM $RRASConfig.name -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
         Write-LogEntry -Type Information -Message "Starting Routing and Remote Access Services server named: $($RRASConfig.Name)"
         while ((Invoke-Command -VMName $RRASConfig.name -Credential $RRASConfig.localadmin { "Test" } -ErrorAction SilentlyContinue) -ne "Test") { Start-Sleep -Seconds 5 }
     }
 
     if ((Get-VMNetworkAdapter -VMName $RRASConfig.name | Where-Object { $_.switchname -eq $RRASConfig.network }).count -eq 0) {
-        if ((Invoke-Pester -TagFilter "RRASLabIP" -PassThru -Output None).result -ne "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASLabIP" -PassThru -Output None).result -eq "Passed") {
             Write-Verbose "RRAS NIC Already Named $($RRASConfig.Network)"
         }
         else {
@@ -144,5 +144,5 @@ function new-RRASServer {
         Write-LogEntry -Type Information -Message "PowerShell Direct Session for $($RRASConfig.name) has been disconnected"
     }
     write-logentry -Type Information -Message "RRAS Server Completed: $(Get-Date)"
-    invoke-pester -name "RRAS"
+    invoke-pester -TagFilter "RRAS" -Output Detailed
 }

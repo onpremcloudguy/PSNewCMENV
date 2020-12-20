@@ -1,6 +1,21 @@
 BeforeAll {
     . .\v5.Testcases.ps1
 }
+
+#region ENV
+Describe 'Env' -Tag 'ENV' {
+    it "ReferenceVHDX" -Tag "RefVHDX" {
+        get-RefVHDXstate -spath $PSScriptRoot | should -be $true
+    }
+    it 'Internet VSwitch should exist' -Tag "ExternalSwitch" { 
+        get-ExternalSwitch | should -be $true 
+    }
+    it "Lab vSwitch should exist" -Tag "LabSwitch" {
+        get-labswitch -spath $PSScriptRoot | should -be $true
+    }
+}
+#endregion
+
 #region RRAS
 Describe 'RRAS' -Tag 'RRAS' {
     it "RRAS VHDX should exist" -Tag "RRASVHDX" {
@@ -29,20 +44,6 @@ Describe 'RRAS' -Tag 'RRAS' {
     }
     it "RRAS has Internet" -Tag "RRASInternet" {
         get-rrasvminternet -spath $PSScriptRoot | should -Be $true
-    }
-}
-#endregion
-
-#region ENV
-Describe 'Env' -Tag 'ENV' {
-    it "ReferenceVHDX" -Tag "RefVHDX" {
-        get-RefVHDXstate -spath $PSScriptRoot | should -be $true
-    }
-    it 'Internet VSwitch should exist' -Tag "ExternalSwitch" { 
-        get-ExternalSwitch | should -be $true 
-    }
-    it "Lab vSwitch should exist" -Tag "LabSwitch" {
-        get-labswitch -spath $PSScriptRoot | should -be $true
     }
 }
 #endregion
@@ -93,7 +94,7 @@ Describe "CA" -tag "CA" {
     it "CA IP Set correctly" -tag "CAIP" { 
         get-CAVMIP -spath $PSScriptRoot | should -be $true
     }
-    it 'CA Domain Services Installed' -tag "CAFeatures" {
+    it 'CA Certificate features Installed' -tag "CAFeatures" {
         get-CAvmfeature -spath $PSScriptRoot | should -be $true
     }
     it 'CA has access to Internet' -tag "CAInternet" {
@@ -101,6 +102,56 @@ Describe "CA" -tag "CA" {
     }
     it 'CA can ping domain' -tag 'CADOM' {
         Get-CAVMDomain -spath $PSScriptRoot | should -be $true
+    }
+}
+#endregion
+
+#region CMpri
+Describe "CM" -tag "CM" {
+    it 'CM VHDX Should Exist' -tag "CMVHDX" { 
+        get-CMprivhdxstate -spath $PSScriptRoot | should -be $true 
+    }
+    it "CM Should Exist" -tag "CMVM" { 
+        get-CMprivmexists -spath $PSScriptRoot | should -be 1 
+    }
+    it "CM Should be running" -tag "CMRunning" { 
+        get-CMprivmrunning -spath $PSScriptRoot | should -be 1 
+    }  
+    it "CM IP Set correctly" -tag "CMIP" { 
+        get-CMpriVMIP -spath $PSScriptRoot | should -be $true
+    }
+    it 'CM Features Installed' -tag "CMFeatures" {
+        get-CMprivmfeature -spath $PSScriptRoot | should -be $true
+    }
+    it 'CM .Net is Installed' -tag "CMNETFeatures" {
+        get-CMprivmnetfeature -spath $PSScriptRoot | should -be $true
+    }
+    it 'CM has access to Internet' -tag "CMInternet" {
+        get-CMpriVMInternet -spath $PSScriptRoot | should -be $true
+    }
+    it 'CM can ping domain' -tag 'CMDOM' {
+        Get-CMpriVMDomain -spath $PSScriptRoot | should -be $true
+    }
+    it 'CM SQL Instance is installed' -tag "CMSQLInst" { 
+        Get-CMPriVMSQLSvc -spath $PSScriptRoot | should -be 1 
+    }
+    it 'CM ADK Installed' -tag 'CMADK' { 
+        get-CMPriVMADK -spath $PSScriptRoot | should -be $true 
+    }
+    it 'CM Server in Group' -tag 'CMServerGroup' { 
+        get-CMPriVMSVRGRP -spath $PSScriptRoot | should -be 1 
+    }
+    it 'CM SCCM Installed' -tag 'CMInstalled' { 
+        get-CMPriVMCMInstalled -spath $PSScriptRoot | should -be 1 
+    }
+    it 'CM SCCM Console Installed' -tag 'CMConsole' { 
+        get-CMPriVMCMConsoleInstalled -spath $PSScriptRoot | should -be $true 
+    }
+    it 'CM Site Boundary added' -tag 'CMSiteBound' { 
+        get-CMPriVMCMBoundary -spath $PSScriptRoot | should -be 1 
+    }
+    it 'CM System Discovery enabled' -tag 'CMSysDisc' { 
+        get-CMPriVMCMDiscovery -spath $PSScriptRoot | should -be 6 
     }
 }
 #endregion

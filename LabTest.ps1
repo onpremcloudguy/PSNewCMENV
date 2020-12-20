@@ -7,8 +7,8 @@ function Set-LabSettings {
 #endregion
 #LAZY MODULE TESTING, WILL BE FIXED ONCE COMPLETED
 #Who am i kidding this is how it will be for ever :)
-foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object { $_.name -notin ("NewENV.Tests.ps1", "labtest.ps1") }) {
-    . ".\$psfile"
+foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object { $_.name -notin ("NewENV.Tests.ps1", "labtest.ps1","new.tests.ps1","v5.testcases.ps1") }) {
+    . "$psfile"
 }
 
 #region import JSON Settings
@@ -115,7 +115,7 @@ if ($SCCMENVType -eq "PRI") {
     $CMConfig.domainnetbios = $domainnetbios
     $CMConfig.CMServerType = "PRI"
     $CMConfig.SCCMVer = $SCCMVer
-    $CMConfig.save("$vmpath\$($config.env)`cmconfig.json")
+    $CMConfig.save("$vmpath\cmconfig.json")
 }
 #endregion
 
@@ -143,7 +143,7 @@ else {
     $CMCASConfig.domainnetbios = $domainnetbios
     $CMCASConfig.CMServerType = "CAS"
     $CMConfig.SCCMVer = $SCCMVer
-    $CMCASConfig.save("$vmpath\$($config.env)`cmCASconfig.json")
+    $CMCASConfig.save("$vmpath\cmCASconfig.json")
 
     $CMCASPRIConfig = [CM]::new()
     $CMCASPRIConfig.name = "$($config.env)`CMCASPRI"
@@ -168,7 +168,7 @@ else {
     $CMCASPRIConfig.CMServerType = "CASPRI"
     $CMConfig.SCCMVer = $SCCMVer
     $CMCASPRIConfig.CASIPAddress = $CMCASConfig.IPAddress
-    $CMCASPRIConfig.save("$vmpath\$($config.env)`cmCASPRIconfig.json")
+    $CMCASPRIConfig.save("$vmpath\cmCASPRIconfig.json")
 }
 #endregion
 
@@ -190,10 +190,10 @@ $CAConfig.save("$vmpath\CAConfig.json")
 #endregion
 
 #region create VMs
-#new-env -ENVConfig $envconfig
-#new-RRASServer -RRASConfig $RRASConfig
+new-env -ENVConfig $envconfig
+new-RRASServer -RRASConfig $RRASConfig
 new-DC -DCConfig $DCConfig
-#New-CAServer -CAConfig $CAConfig
+New-CAServer -CAConfig $CAConfig
 if ($SCCMENVType -eq "PRI") {
     new-SCCMServer -CMConfig $CMConfig
 }

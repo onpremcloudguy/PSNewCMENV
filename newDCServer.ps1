@@ -70,7 +70,7 @@ function new-DC {
             Copy-Item -Path $dcconfig.RefVHDX -Destination $dcconfig.VHDXpath
             Write-LogEntry -Message "Reference VHDX: $($dcconfig.refvhdx) has been copied to: $($dcconfig.VHDXpath)" -Type Information
         }
-        if ((Invoke-Pester -tagfilter "DCVHDX" -passthru -output none).result -eq "Passed") {
+        if ((Invoke-Pester -tagfilter "DCVHDX" -passthru -output none).result -ne "Passed") {
             Write-LogEntry -Message "Error Creating the VHDX for $($dcconfig.name). Build STOPPED" -Type Error 
             throw "Error Creating the VHDX for DC"
         }
@@ -135,5 +135,5 @@ function new-DC {
         $dcsessiondom | Remove-PSSession
     }
     Write-LogEntry -Message "DC Server Completed: $(Get-Date)" -Type Information
-    Invoke-Pester -TestName "DC"
+    Invoke-Pester -TagFilter "DC" -Output Detailed
 }
