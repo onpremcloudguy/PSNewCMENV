@@ -55,7 +55,7 @@ function new-RRASServer {
             Copy-Item -Path $RRASConfig.RefVHDX -Destination $RRASConfig.VHDXpath
             Write-LogEntry -Type Information -Message "Reference VHDX: $($RRASConfig.RefVHDX) has been copied to: $($RRASConfig.VHDXpath)"
         }
-        if ((Invoke-Pester -TagFilter "RRASVHDX" -PassThru -Output None).result -eq "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASVHDX" -PassThru -Output None).result -ne "Passed") {
             Write-LogEntry -Type Error -Message "Error Creating the VHDX for RRAS. Build STOPPED"
             throw "Error Creating the VHDX for RRAS"
         }
@@ -81,7 +81,7 @@ function new-RRASServer {
         while ((Invoke-Command -VMName $RRASConfig.name -Credential $RRASConfig.localadmin { "Test" } -ErrorAction SilentlyContinue) -ne "Test") { Start-Sleep -Seconds 5 }
         $RRASConfigSession = New-PSSession -VMName $RRASConfig.name -Credential $RRASConfig.localadmin
         Write-LogEntry -Type Information -Message "PowerShell Direct session for $($RRASConfig.localadmin.UserName) has been initated with RRAS Server named: $($RRASConfig.name)"
-        if ((Invoke-Pester -TagFilter "RRASVPN" -PassThru -Output None).result -ne "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASVPN" -PassThru -Output None).result -eq "Passed") {
             Write-Verbose "RRAS Routing Already installed"
         }
         else {
@@ -92,7 +92,7 @@ function new-RRASServer {
         while ((Invoke-Command -VMName $RRASConfig.name -Credential $RRASConfig.localadmin { "Test" } -ErrorAction SilentlyContinue) -ne "Test") { Start-Sleep -Seconds 5 }
         $RRASConfigSession = New-PSSession -VMName $RRASConfig.name -Credential $RRASConfig.localadmin
         Write-LogEntry -Type Information -Message "PowerShell Direct session for $($RRASConfig.localadmin.UserName) has been initated with RRAS Server named: $($RRASConfig.name)"
-        if ((Invoke-Pester -TagFilter "RRASExtNIC" -PassThru -Output None).result -ne "Passed") {
+        if ((Invoke-Pester -TagFilter "RRASExtNIC" -PassThru -Output None).result -eq "Passed") {
             Write-Verbose "RRAS NIC Already Named external"
         }
         else {

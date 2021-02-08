@@ -8,7 +8,7 @@ function Set-LabSettings {
 #LAZY MODULE TESTING, WILL BE FIXED ONCE COMPLETED
 #Who am i kidding this is how it will be for ever :)
 foreach ($psfile in get-childitem -Filter *.ps1 | Where-Object { $_.name -notin ("NewENV.Tests.ps1", "labtest.ps1","new.tests.ps1","v5.testcases.ps1") }) {
-    . "$psfile"
+    . $psfile.FullName
 }
 
 #region import JSON Settings

@@ -17,14 +17,14 @@ function new-LabVHDX {
         [String]
         $WinNet35Cab
     )
-    $convmod = get-module -ListAvailable -Name 'Convert-WindowsImage'
+    $convmod = get-module -ListAvailable -Name 'Hyper-ConvertImage'
     if ($convmod.count -ne 1) {
-        Install-Module -name 'Convert-WindowsImage' -Scope AllUsers
+        Install-Module -name 'Hyper-ConvertImage' -Scope AllUsers
     }
     else {
-        Update-Module -Name 'Convert-WindowsImage'    
+        Update-Module -Name 'Hyper-ConvertImage'    
     }
-    Import-module -name 'Convert-Windowsimage'
+    Import-module -name 'Hyper-ConvertImage'
     $cornum = 2
     if ($core.IsPresent) { $cornum = 3 }else { $cornum = 4 }
     Convert-WindowsImage -SourcePath $WinISO -Edition $cornum -VhdType Dynamic -VhdFormat VHDX -VhdPath $vhdxpath -DiskLayout UEFI -SizeBytes 127gb -UnattendPath $unattend
