@@ -8,7 +8,7 @@ function Get-EnvSettings {
     $envConfig = $config.ENVConfig | Where-Object { $_.env -eq $config.env }
     $admpwd = $envConfig.AdminPW
     $testconfig.localadmin = new-object -typename System.Management.Automation.PSCredential -argumentlist ".\administrator", (ConvertTo-SecureString -String $admpwd -AsPlainText -Force)
-    $testconfig.domuser = new-object -typename System.Management.Automation.PSCredential -argumentlist "$($envconfig.env)\administrator", (ConvertTo-SecureString -String $admpwd -AsPlainText -Force)
+    $testconfig.domuser = new-object -typename System.Management.Automation.PSCredential -argumentlist "$($envconfig.DomainNetBiosName)\administrator", (ConvertTo-SecureString -String $admpwd -AsPlainText -Force)
     $testconfig.vmpath = $envConfig.VMPath
     $testconfig.swname = $envConfig.SwitchName
     $testconfig.DomainFQDN = $envconfig.DomainFQDN

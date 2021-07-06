@@ -21,7 +21,7 @@ Write-LogEntry -Type Information -Message "Start of build process for $($config.
 $admpwd = $envConfig.AdminPW
 Write-LogEntry -Type Information -Message "Admin password set to: $admpwd"
 $localadmin = new-object -typename System.Management.Automation.PSCredential -argumentlist "administrator", (ConvertTo-SecureString -String $admpwd -AsPlainText -Force)
-$domuser = new-object -typename System.Management.Automation.PSCredential -argumentlist "$($envconfig.env)\administrator", (ConvertTo-SecureString -String $admpwd -AsPlainText -Force)
+$domuser = new-object -typename System.Management.Automation.PSCredential -argumentlist "$($envconfig.DomainNetBiosName)\administrator", (ConvertTo-SecureString -String $admpwd -AsPlainText -Force)
 $vmpath = $envConfig.VMPath
 Write-LogEntry -Type Information -Message "Path for VHDXs set to: $vmpath"
 $swname = $envConfig.SwitchName
